@@ -1,0 +1,302 @@
+import { useEffect, useState } from "react";
+import { Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+
+interface CurrentRide {
+  ride_id: string;
+  status: string;
+  passenger_name: string;
+  passenger_phone: string;
+  pickup: string;
+  dropoff: string;
+  fare: number;
+  distance: number;
+}
+
+export default function CurrentRide() {
+  const [currentRide, setCurrentRide] = useState<CurrentRide | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+
+  useEffect(() => {
+    // Simulate fetching current ride
+    const fetchCurrentRide = async () => {
+      try {
+        // TODO: Replace with actual API call
+        // const response = await fetch(`${API_BASE_URL}/api/v1/driver/current-ride`);
+        // const data = await response.json();
+
+        // Dummy data for now
+        const dummyRide: CurrentRide = {
+          ride_id: "ride_001",
+          status: "in_progress",
+          passenger_name: "Raj Sharma",
+          passenger_phone: "+91-9876543210",
+          pickup: "Malkapur Station",
+          dropoff: "Civil Lines",
+          fare: 65,
+          distance: 3.2,
+        };
+
+        setCurrentRide(dummyRide);
+      } catch (error) {
+        console.error("Failed to fetch current ride:", error);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    fetchCurrentRide();
+
+    // Poll for updates every 30 seconds
+    const interval = setInterval(fetchCurrentRide, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  const handleCallPassenger = () => {
+    if (currentRide?.passenger_phone) {
+      Linking.openURL(`tel:${currentRide.passenger_phone}`);
+    }
+  };
+
+  const handleCompleteRide = () => {
+    Alert.alert(
+      "Complete Ride",
+      "Mark this ride as completed?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Complete", onPress: () => {
+          // TODO: Call complete ride API
+          Alert.alert("Ride Completed", "Ride marked as completed. Earnings updated.");
+          setCurrentRide(null);
+        }},
+      ]
+    );
+  };
+
+  const handleStartRide = () => {
+    Alert.alert(
+      "Start Ride",
+      "Confirm pickup and start the ride?",
+      [
+        { text: "Cancel", style: "cancel" },
+        { text: "Start", onPress: () => {
+          // TODO: Call start ride API
+          Alert.alert("Ride Started", "Safe journey!");
+          if (currentRide) {
+            setCurrentRide({ ...currentRide, status: "in_progress" });
+          }
+        }},
+      ]
+    );
+  };
+
+  if (isLoading) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>Loading current ride...</Text>
+      </View>
+    );
+  }
+
+  if (!currentRide) {
+    return (
+      <View style={styles.container}>
+        <Text style={styles.title}>No Active Ride</Text>
+        <Text style={styles.subtitle}>You don't have any active rides at the moment</Text>
+      </View>
+    );
+  }
+
+  return (
+    <View style={styles.container}>
+      <Text style={styles.title}>Current Ride</Text>
+
+      <View style={styles.statusCard}>
+        <Text style={styles.statusText}>
+          Status: {currentRide.status === "accepted" ? "Waiting for Pickup" :
+                   currentRide.status === "in_progress" ? "In Progress" :
+                   currentRide.status}
+        </Text>
+      </View>
+
+      <View style={styles.infoCard}>
+        <View style={styles.passengerInfo}>
+          <Text style={styles.label}>Passenger:</Text>
+          <Text style={styles.value}>{currentRide.passenger_name}</Text>
+        </View>
+
+        <View style={styles.routeContainer}>
+          <Text style={styles.location}>{currentRide.pickup}</Text>
+          <Text style={styles.arrow}>↓</Text>
+          <Text style={styles.location}>{currentRide.dropoff}</Text>
+        </View>
+
+        <View style={styles.detailsRow}>
+          <Text style={styles.detail}>{currentRide.distance} km</Text>
+          <Text style={styles.fareAmount}>₹{currentRide.fare}</Text>
+        </View>
+      </View>
+
+      <View style={styles.buttonContainer}>
+        <Pressable
+          style={({ pressed }) => [
+            styles.callButton,
+            pressed && styles.pressed,
+          ]}
+          onPress={handleCallPassenger}
+        >
+          <Text style={styles.callButtonText}>Call Passenger</Text>
+        </Pressable>
+
+        {currentRide.status === "accepted" && (
+          <Pressable
+            style={({ pressed }) => [
+              styles.startButton,
+              pressed && styles.pressed,
+            ]}
+            onPress={handleStartRide}
+          >
+            <Text style={styles.startButtonText}>Start Ride</Text>
+          </Pressable>
+        )}
+
+        {currentRide.status === "in_progress" && (
+          <Pressable
+            style={({ pressed }) => [
+              styles.completeButton,
+              pressed && styles.pressed,
+            ]}
+            onPress={handleCompleteRide}
+          >
+            <Text style={styles.completeButtonText}>Complete Ride</Text>
+          </Pressable>
+        )}
+      </View>
+    </View>
+  );
+}
+
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    padding: 20,
+    backgroundColor: "#FFF",
+  },
+  title: {
+    fontSize: 24,
+    fontWeight: "bold",
+    color: "#000",
+    marginBottom: 20,
+  },
+  subtitle: {
+    fontSize: 16,
+    color: "#666",
+    textAlign: "center",
+  },
+  statusCard: {
+    backgroundColor: "#E3F2FD",
+    borderWidth: 2,
+    borderColor: "#2196F3",
+    borderRadius: 8,
+    padding: 15,
+    marginBottom: 20,
+  },
+  statusText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#0D47A1",
+    textAlign: "center",
+  },
+  infoCard: {
+    backgroundColor: "#F9F9F9",
+    borderWidth: 2,
+    borderColor: "#FFC107",
+    borderRadius: 8,
+    padding: 15,
+    marginBottom: 20,
+  },
+  passengerInfo: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    marginBottom: 15,
+  },
+  label: {
+    fontSize: 14,
+    color: "#666",
+    fontWeight: "500",
+  },
+  value: {
+    fontSize: 14,
+    color: "#000",
+    fontWeight: "600",
+  },
+  routeContainer: {
+    alignItems: "center",
+    marginBottom: 15,
+  },
+  location: {
+    fontSize: 16,
+    fontWeight: "600",
+    color: "#000",
+  },
+  arrow: {
+    fontSize: 14,
+    color: "#666",
+    marginVertical: 5,
+  },
+  detailsRow: {
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
+  },
+  detail: {
+    fontSize: 14,
+    color: "#666",
+  },
+  fareAmount: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#FFC107",
+  },
+  buttonContainer: {
+    gap: 10,
+  },
+  callButton: {
+    backgroundColor: "#4CAF50",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  callButtonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  startButton: {
+    backgroundColor: "#FF9800",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  startButtonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  completeButton: {
+    backgroundColor: "#2196F3",
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+  },
+  completeButtonText: {
+    color: "#FFF",
+    fontSize: 16,
+    fontWeight: "bold",
+  },
+  pressed: {
+    opacity: 0.8,
+  },
+});

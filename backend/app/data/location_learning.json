@@ -1,0 +1,20 @@
+{
+  "searches": {
+    "malkapur_hospital": {
+      "malkapur city hospital": 1
+    },
+    "malkapur_station": {
+      "malkapur railway station": 6
+    },
+    "bus_stand": {
+      "malkapur bus stand": 7
+    },
+    "malkapur_market": {
+      "malkapur market": 1
+    }
+  },
+  "alternatives": {},
+  "corrections": {},
+  "sequences": {},
+  "last_updated": "2025-12-31T12:56:58.045697"
+}

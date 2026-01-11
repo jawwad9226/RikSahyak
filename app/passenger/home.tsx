@@ -1,6 +1,10 @@
- import LocationInput from "@/src/components/LocationInput";
+import LocationInput from "@/src/components/LocationInput";
+import { API_CONFIG } from "@/src/config/env";
+import { useUser } from "@/src/context/UserContext";
+import { createRideRequest, getRideStatus } from "@/src/services/api";
 import { colors } from "@/src/utils/colors";
-import { useState } from "react";
+import { useRouter } from "expo-router";
+import { useEffect, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 interface LocationResult {
@@ -12,6 +16,8 @@ interface LocationResult {
 }
 
 export default function PassengerHome() {
+  const { user } = useUser();
+  const router = useRouter();
   const [pickupLocation, setPickupLocation] = useState<LocationResult | null>(null);
   const [dropoffLocation, setDropoffLocation] = useState<LocationResult | null>(null);
   const [estimatedFare, setEstimatedFare] = useState<number | null>(null);
@@ -19,6 +25,9 @@ export default function PassengerHome() {
   const [estimatedTime, setEstimatedTime] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
   const [distanceMethod, setDistanceMethod] = useState<string>("");
+  const [rideId, setRideId] = useState<string | null>(null);
+  const [rideStatus, setRideStatus] = useState<string | null>(null);
+  const [statusLoading, setStatusLoading] = useState<boolean>(false);
 
   const handleCalculateFare = async () => {
     if (!pickupLocation || !dropoffLocation) {
@@ -28,9 +37,7 @@ export default function PassengerHome() {
 
     setLoading(true);
     try {
-      const API_URL = "http://192.168.2.6:8000";
-      
-      const response = await fetch(`${API_URL}/api/v1/rides/calculate-fare`, {
+      const response = await fetch(`${API_CONFIG.API_PREFIX}/rides/calculate-fare`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
@@ -68,9 +75,44 @@ export default function PassengerHome() {
       alert("Calculate fare first");
       return;
     }
-    alert(
-      `Booking ride from ${pickupLocation?.name} to ${dropoffLocation?.name}\nFare: ₹${estimatedFare}`
-    );
+    if (!pickupLocation || !dropoffLocation) {
+      alert("Please select pickup and dropoff locations");
+      return;
+    }
+
+    // Minimal request to backend
+    (async () => {
+      try {
+        setStatusLoading(true);
+        const res = await createRideRequest({
+          passenger_id: user?.user_id || "PAS-001",
+          pickup_location: pickupLocation.name,
+          dropoff_location: dropoffLocation.name,
+          pickup_coords: {
+            latitude: pickupLocation.latitude,
+            longitude: pickupLocation.longitude,
+          },
+          dropoff_coords: {
+            latitude: dropoffLocation.latitude,
+            longitude: dropoffLocation.longitude,
+          },
+          estimated_fare: estimatedFare,
+          distance_km: distance ?? 0,
+        });
+        if (res.success && res.data) {
+          const data: any = res.data;
+          setRideId(data.ride_id);
+          setRideStatus(data.status || "REQUESTED");
+        } else {
+          alert("Failed to create ride request");
+        }
+      } catch (e: any) {
+        const errorMessage = e?.message || String(e) || "Unknown error";
+        alert("Error: " + errorMessage);
+      } finally {
+        setStatusLoading(false);
+      }
+    })();
   };
 
   const handleOpenInGoogleMaps = () => {
@@ -83,6 +125,38 @@ export default function PassengerHome() {
     const url = `https://www.google.com/maps/dir/?api=1&origin=${origin}&destination=${destination}&travelmode=driving`;
     Linking.openURL(url).catch(() => alert("Could not open Google Maps"));
   };
+
+  // Poll ride status when we have a rideId
+  useEffect(() => {
+    if (!rideId) return;
+    if (rideStatus === "COMPLETED") return;
+
+    const interval = setInterval(async () => {
+      try {
+        const res = await getRideStatus(rideId);
+        if (res.success && res.data) {
+          const data: any = res.data;
+          const status = data.status as string;
+          if (status) {
+            setRideStatus(status);
+            
+            // Navigate to active ride when driver accepts
+            if (status === "DRIVER_ASSIGNED" || status === "IN_PROGRESS") {
+              router.push("/passenger/active-ride");
+            }
+            
+            if (status === "COMPLETED") {
+              clearInterval(interval);
+            }
+          }
+        }
+      } catch (e) {
+        // Silent: keep deterministic minimal behavior
+      }
+    }, 2000);
+
+    return () => clearInterval(interval);
+  }, [rideId, rideStatus, router]);
 
   return (
     <>
@@ -147,10 +221,10 @@ export default function PassengerHome() {
           </View>
 
           <Pressable
-            style={({ pressed }) => [styles.navigationButton, pressed && styles.pressed]}
+            style={({ pressed }) => [styles.externalMapButton, pressed && styles.pressed]}
             onPress={handleOpenInGoogleMaps}
           >
-            <Text style={styles.navigationButtonText}>🗺️ Navigate with Google Maps</Text>
+            <Text style={styles.externalMapButtonText}>🗺️ Navigate with Google Maps</Text>
           </Pressable>
         </>
       )}
@@ -162,6 +236,24 @@ export default function PassengerHome() {
         >
           <Text style={[styles.buttonText, { color: "#FFC107" }]}>Book Ride Now</Text>
         </Pressable>
+      )}
+
+      {rideId && (
+        <View style={styles.statusContainer}>
+          <Text style={styles.statusTitle}>Ride Status</Text>
+          <Text style={styles.statusText}>
+            {statusLoading && !rideStatus ? "Requesting..." : rideStatus || "REQUESTED"}
+          </Text>
+          {rideStatus === "REQUESTED" && (
+            <Text style={styles.statusHint}>Searching for a driver...</Text>
+          )}
+          {rideStatus === "DRIVER_ASSIGNED" && (
+            <Text style={styles.statusHint}>Driver assigned. Ride will start soon.</Text>
+          )}
+          {rideStatus === "COMPLETED" && (
+            <Text style={styles.statusHint}>Ride completed. Thank you!</Text>
+          )}
+        </View>
       )}
 
       <Text style={styles.disclaimer}>
@@ -307,5 +399,29 @@ const styles = StyleSheet.create({
     fontSize: 16,
     fontWeight: "bold",
     color: colors.primary,
+  },
+  statusContainer: {
+    backgroundColor: "#F9F9F9",
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#ddd",
+    marginTop: 10,
+  },
+  statusTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#333",
+    marginBottom: 6,
+  },
+  statusText: {
+    fontSize: 16,
+    fontWeight: "700",
+    color: colors.primary,
+  },
+  statusHint: {
+    fontSize: 12,
+    color: "#666",
+    marginTop: 4,
   },
 });

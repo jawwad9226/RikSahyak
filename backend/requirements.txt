@@ -4,3 +4,4 @@ pydantic==2.10.3
 python-dotenv==1.0.1
 firebase-admin==6.5.0
 python-multipart==0.0.17
+google-cloud-firestore>=2.16.0

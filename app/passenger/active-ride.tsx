@@ -1,3 +1,6 @@
+import { API_CONFIG } from "@/src/config/env";
+import { useUser } from "@/src/context/UserContext";
+import { cancelRide, getRideStatus } from "@/src/services/api";
 import { useEffect, useState } from "react";
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -15,62 +18,107 @@ interface RideStatus {
 }
 
 export default function ActiveRide() {
+  const { user } = useUser();
   const [rideStatus, setRideStatus] = useState<RideStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [rideId, setRideId] = useState<string | null>(null);
 
+  // Get active ride for this passenger
   useEffect(() => {
-    // Simulate fetching ride status
-    const fetchRideStatus = async () => {
+    const fetchActiveRide = async () => {
       try {
-        // TODO: Replace with actual API call
-        // const response = await fetch(`${API_BASE_URL}/api/v1/rides/status/${rideId}`);
-        // const data = await response.json();
+        if (!user?.user_id) {
+          setIsLoading(false);
+          return;
+        }
 
-        // Dummy data for now
-        const dummyStatus: RideStatus = {
-          ride_id: "ride_001",
-          status: "in_progress",
-          passenger: "Raj",
-          pickup: "Malkapur Station",
-          dropoff: "Civil Lines",
-          driver_name: "Ramesh Kumar",
-          driver_phone: "+91-9876543210",
-          vehicle_number: "MH-43-A-1234",
-          current_location: "Near Bus Stand",
-          eta_minutes: 5,
-        };
+        const response = await fetch(`${API_CONFIG.API_PREFIX}/rides/passenger/${user.user_id}`, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        });
 
-        setRideStatus(dummyStatus);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.ride_id) {
+            setRideId(data.ride_id);
+          }
+        }
       } catch (error) {
-        Alert.alert("Error", "Failed to fetch ride status");
+        console.error("Error fetching active ride:", error);
       } finally {
         setIsLoading(false);
       }
     };
 
+    fetchActiveRide();
+  }, [user?.user_id]);
+
+  // Fetch ride status details when we have a ride ID
+  useEffect(() => {
+    if (!rideId) {
+      setRideStatus(null);
+      return;
+    }
+
+    const fetchRideStatus = async () => {
+      try {
+        const res = await getRideStatus(rideId);
+        if (res.success && res.data) {
+          const data: any = res.data;
+          setRideStatus({
+            ride_id: data.id || data.ride_id,
+            status: data.status,
+            passenger: data.passenger_name || "You",
+            pickup: data.pickup_location,
+            dropoff: data.dropoff_location,
+            driver_name: data.driver_name,
+            driver_phone: data.driver_phone,
+            vehicle_number: data.vehicle_number,
+            current_location: data.current_location,
+            eta_minutes: data.eta_minutes,
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching ride status:", error);
+      }
+    };
+
     fetchRideStatus();
 
-    // Poll for updates every 30 seconds
-    const interval = setInterval(fetchRideStatus, 30000);
+    // Poll for updates every 3 seconds
+    const interval = setInterval(fetchRideStatus, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [rideId]);
 
   const handleCallDriver = () => {
     if (rideStatus?.driver_phone) {
       Linking.openURL(`tel:${rideStatus.driver_phone}`);
+    } else {
+      Alert.alert("Error", "Driver phone number not available");
     }
   };
 
   const handleCancelRide = () => {
+    if (!rideId) return;
+    
     Alert.alert(
       "Cancel Ride",
       "Are you sure you want to cancel this ride?",
       [
         { text: "No", style: "cancel" },
-        { text: "Yes", onPress: () => {
-          // TODO: Call cancel API
-          Alert.alert("Ride Cancelled", "Your ride has been cancelled.");
-          setRideStatus(null);
+        { text: "Yes", onPress: async () => {
+          try {
+            const response = await cancelRide(rideId);
+            if (response.success) {
+              Alert.alert("Cancelled", "Your ride has been cancelled.");
+              setRideId(null);
+              setRideStatus(null);
+            } else {
+              Alert.alert("Error", response.error || "Failed to cancel ride");
+            }
+          } catch (error) {
+            Alert.alert("Error", "Failed to cancel ride: " + String(error));
+          }
         }},
       ]
     );

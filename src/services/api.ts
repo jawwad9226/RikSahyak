@@ -1,63 +1,57 @@
-// API Configuration and Utility Functions
+// API Service - High-level API functions for the app
+// Uses centralized API client for all requests
+// Includes offline queue management for ride requests
 
-const API_BASE_URL = "http://192.168.1.5:8000"; // Change to your laptop's LAN IP
-const API_VERSION = "v1";
+import { apiGet, apiPost } from "./apiClient";
+import { isBackendReachable } from "@/src/utils/connectivityHelpers";
+import {
+  addToQueue,
+  removeFromQueue,
+  incrementRetryCount,
+  getPendingRequests,
+  QueuedRideRequest,
+} from "@/src/utils/asyncStorageQueue";
+import { showToast, showSuccessToast, showErrorToast } from "@/src/utils/toastHelper";
 
-interface ApiResponse<T> {
+// Re-export apiClient functions for convenience
+export { apiGet, apiPost };
+
+export interface ApiResponse<T = any> {
   success: boolean;
   data?: T;
   error?: string;
+  statusCode?: number;
 }
 
 /**
- * Make a GET request to the backend
+ * Callback for when a queued ride is successfully synced
  */
-export async function apiGet<T>(endpoint: string): Promise<ApiResponse<T>> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/${API_VERSION}${endpoint}`, {
-      method: "GET",
-      headers: {
-        "Content-Type": "application/json",
-      },
-    });
+export type OnQueuedRideSynced = (queuedItem: QueuedRideRequest, rideResponse: any) => void;
 
-    const data = await response.json();
-    return { success: response.ok, data };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
-}
+// Store callback for queue sync events
+let queueSyncCallback: OnQueuedRideSynced | null = null;
 
 /**
- * Make a POST request to the backend
+ * Register callback for when queued rides are synced
  */
-export async function apiPost<T>(
-  endpoint: string,
-  body: any
-): Promise<ApiResponse<T>> {
-  try {
-    const response = await fetch(`${API_BASE_URL}/api/${API_VERSION}${endpoint}`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify(body),
-    });
-
-    const data = await response.json();
-    return { success: response.ok, data };
-  } catch (error: any) {
-    return { success: false, error: error.message };
-  }
+export function onQueuedRideSynced(callback: OnQueuedRideSynced): void {
+  queueSyncCallback = callback;
 }
 
 /**
  * Calculate fare for a ride
  */
-export async function calculateFare(pickupLocation: string, dropoffLocation: string) {
+export async function calculateFare(
+  pickupLocation: string,
+  dropoffLocation: string,
+  pickupCoords?: { latitude: number; longitude: number },
+  dropoffCoords?: { latitude: number; longitude: number }
+) {
   return apiPost("/rides/calculate-fare", {
     pickup_location: pickupLocation,
     dropoff_location: dropoffLocation,
+    pickup_coords: pickupCoords,
+    dropoff_coords: dropoffCoords,
   });
 }
 
@@ -86,30 +80,72 @@ export async function getRideStatus(rideId: string) {
 }
 
 /**
- * Connect to WebSocket for real-time updates
+ * Get all requested rides (for drivers)
  */
-export function connectWebSocket(userId: string, onMessage: (data: any) => void) {
-  const wsUrl = `ws://192.168.1.5:8000/api/v1/ws/rides/${userId}`;
-  const ws = new WebSocket(wsUrl);
+export async function getRequestedRides() {
+  return apiGet("/rides/requested");
+}
 
-  ws.onmessage = (event) => {
-    const data = JSON.parse(event.data);
-    onMessage(data);
-  };
+/**
+ * Get current ride for a driver
+ */
+export async function getDriverCurrentRide(driverId: string) {
+  return apiGet(`/rides/driver/${driverId}/current`);
+}
 
-  ws.onerror = (error) => {
-    console.error("WebSocket error:", error);
-  };
+/**
+ * Get current ride for a passenger
+ */
+export async function getPassengerCurrentRide(passengerId: string) {
+  return apiGet(`/rides/passenger/${passengerId}/current`);
+}
 
-  return ws;
+/**
+ * Start a ride (IN_PROGRESS)
+ */
+export async function startRide(rideId: string, driverId?: string) {
+  return apiPost(`/rides/${rideId}/start`, { driver_id: driverId });
+}
+
+/**
+ * Complete a ride
+ */
+export async function completeRide(rideId: string, driverId?: string) {
+  return apiPost(`/rides/${rideId}/complete`, { driver_id: driverId });
+}
+
+/**
+ * Cancel a ride
+ */
+export async function cancelRide(rideId: string) {
+  return apiPost(`/rides/${rideId}/cancel`, {});
+}
+
+/**
+ * Get admin statistics
+ */
+export async function getAdminStats() {
+  return apiGet("/admin/stats");
+}
+
+/**
+ * Search locations
+ */
+export async function searchLocation(query: string) {
+  return apiPost("/rides/search-location", { query });
 }
 
 export default {
-  apiGet,
-  apiPost,
   calculateFare,
   createRideRequest,
   acceptRide,
   getRideStatus,
-  connectWebSocket,
+  getRequestedRides,
+  getDriverCurrentRide,
+  getPassengerCurrentRide,
+  startRide,
+  completeRide,
+  cancelRide,
+  getAdminStats,
+  searchLocation,
 };

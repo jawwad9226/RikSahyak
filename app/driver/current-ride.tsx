@@ -1,3 +1,6 @@
+import { API_CONFIG } from "@/src/config/env";
+import { useUser } from "@/src/context/UserContext";
+import { completeRide, getRideStatus, startRide } from "@/src/services/api";
 import { useEffect, useState } from "react";
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 
@@ -13,76 +16,131 @@ interface CurrentRide {
 }
 
 export default function CurrentRide() {
+  const { user } = useUser();
   const [currentRide, setCurrentRide] = useState<CurrentRide | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [rideId, setRideId] = useState<string | null>(null);
 
+  // Get current ride for this driver
   useEffect(() => {
-    // Simulate fetching current ride
     const fetchCurrentRide = async () => {
       try {
-        // TODO: Replace with actual API call
-        // const response = await fetch(`${API_BASE_URL}/api/v1/driver/current-ride`);
-        // const data = await response.json();
+        if (!user?.user_id) {
+          setIsLoading(false);
+          return;
+        }
 
-        // Dummy data for now
-        const dummyRide: CurrentRide = {
-          ride_id: "ride_001",
-          status: "in_progress",
-          passenger_name: "Raj Sharma",
-          passenger_phone: "+91-9876543210",
-          pickup: "Malkapur Station",
-          dropoff: "Civil Lines",
-          fare: 65,
-          distance: 3.2,
-        };
+        const response = await fetch(`${API_CONFIG.API_PREFIX}/rides/driver/${user.user_id}/current`, {
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
+        });
 
-        setCurrentRide(dummyRide);
+        if (response.ok) {
+          const data = await response.json();
+          if (data.ride_id || data.id) {
+            setRideId(data.ride_id || data.id);
+          }
+        }
       } catch (error) {
-        console.error("Failed to fetch current ride:", error);
+        console.error("Error fetching current ride:", error);
       } finally {
         setIsLoading(false);
       }
     };
 
     fetchCurrentRide();
+  }, [user?.user_id]);
 
-    // Poll for updates every 30 seconds
-    const interval = setInterval(fetchCurrentRide, 30000);
+  // Fetch ride details when we have a ride ID
+  useEffect(() => {
+    if (!rideId) {
+      setCurrentRide(null);
+      return;
+    }
+
+    const fetchRideDetails = async () => {
+      try {
+        const res = await getRideStatus(rideId);
+        if (res.success && res.data) {
+          const data: any = res.data;
+          setCurrentRide({
+            ride_id: data.id || data.ride_id,
+            status: data.status,
+            passenger_name: data.passenger_name || "Passenger",
+            passenger_phone: data.passenger_phone || "",
+            pickup: data.pickup_location,
+            dropoff: data.dropoff_location,
+            fare: data.estimated_fare || data.fare || 0,
+            distance: data.distance_km || 0,
+          });
+        }
+      } catch (error) {
+        console.error("Error fetching ride details:", error);
+      }
+    };
+
+    fetchRideDetails();
+
+    // Poll for updates every 3 seconds
+    const interval = setInterval(fetchRideDetails, 3000);
     return () => clearInterval(interval);
-  }, []);
+  }, [rideId]);
 
   const handleCallPassenger = () => {
     if (currentRide?.passenger_phone) {
       Linking.openURL(`tel:${currentRide.passenger_phone}`);
+    } else {
+      Alert.alert("Error", "Passenger phone number not available");
     }
   };
 
-  const handleCompleteRide = () => {
+  const handleCompleteRide = async () => {
+    if (!rideId) return;
+
     Alert.alert(
       "Complete Ride",
       "Mark this ride as completed?",
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Complete", onPress: () => {
-          // TODO: Call complete ride API
-          Alert.alert("Ride Completed", "Ride marked as completed. Earnings updated.");
-          setCurrentRide(null);
+        { text: "Complete", onPress: async () => {
+          try {
+            const response = await completeRide(rideId, user?.user_id);
+            if (response.success) {
+              Alert.alert("Completed", "Ride marked as completed. Earnings updated.");
+              setRideId(null);
+              setCurrentRide(null);
+            } else {
+              Alert.alert("Error", response.error || "Failed to complete ride");
+            }
+          } catch (error) {
+            Alert.alert("Error", "Failed to complete ride: " + String(error));
+          }
         }},
       ]
     );
   };
 
-  const handleStartRide = () => {
+  const handleStartRide = async () => {
+    if (!rideId) return;
+
     Alert.alert(
       "Start Ride",
       "Confirm pickup and start the ride?",
       [
         { text: "Cancel", style: "cancel" },
-        { text: "Start", onPress: () => {
-          // TODO: Call start ride API
-          Alert.alert("Ride Started", "Safe journey!");
-          if (currentRide) {
-            setCurrentRide({ ...currentRide, status: "in_progress" });
+        { text: "Start", onPress: async () => {
+          try {
+            const response = await startRide(rideId, user?.user_id);
+            if (response.success) {
+              Alert.alert("Started", "Ride started. Safe journey!");
+              if (currentRide) {
+                setCurrentRide({ ...currentRide, status: "IN_PROGRESS" });
+              }
+            } else {
+              Alert.alert("Error", response.error || "Failed to start ride");
+            }
+          } catch (error) {
+            Alert.alert("Error", "Failed to start ride: " + String(error));
           }
         }},
       ]

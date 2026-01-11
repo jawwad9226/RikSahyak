@@ -1,5 +1,6 @@
+import { apiGet } from "@/src/services/api";
 import { useEffect, useState } from "react";
-import { ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
 
 interface DashboardStats {
   totalRides: number;
@@ -15,30 +16,22 @@ interface DashboardStats {
 export default function AdminDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Simulate fetching dashboard stats
     const fetchStats = async () => {
       try {
-        // TODO: Replace with actual API call
-        // const response = await fetch(`${API_BASE_URL}/api/v1/admin/stats`);
-        // const data = await response.json();
-
-        // Dummy data for now
-        const dummyStats: DashboardStats = {
-          totalRides: 1247,
-          totalRevenue: 78550,
-          activeDrivers: 12,
-          activeRides: 3,
-          todayRides: 28,
-          todayRevenue: 1820,
-          totalPassengers: 892,
-          averageRating: 4.7,
-        };
-
-        setStats(dummyStats);
+        setIsLoading(true);
+        setError(null);
+        const response = await apiGet<DashboardStats>("/admin/stats");
+        if (response.success && response.data) {
+          setStats(response.data);
+        } else {
+          setError(response.error || "Failed to fetch stats");
+        }
       } catch (error) {
         console.error("Failed to fetch dashboard stats:", error);
+        setError("Network error occurred");
       } finally {
         setIsLoading(false);
       }
@@ -54,16 +47,17 @@ export default function AdminDashboard() {
   if (isLoading) {
     return (
       <View style={styles.container}>
+        <ActivityIndicator size="large" color="#FFC107" />
         <Text style={styles.title}>Loading dashboard...</Text>
       </View>
     );
   }
 
-  if (!stats) {
+  if (error || !stats) {
     return (
       <View style={styles.container}>
         <Text style={styles.title}>Admin Dashboard</Text>
-        <Text style={styles.subtitle}>Unable to load dashboard data</Text>
+        <Text style={styles.errorText}>{error || "Unable to load dashboard data"}</Text>
       </View>
     );
   }

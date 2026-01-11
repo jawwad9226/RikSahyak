@@ -1,6 +1,16 @@
-import { Stack } from "expo-router";
+import { useUser } from "@/src/context/UserContext";
+import { Stack, useRouter } from "expo-router";
+import { Text, TouchableOpacity } from "react-native";
 
 export default function DriverLayout() {
+  const router = useRouter();
+  const { logout } = useUser();
+
+  const handleLogout = async () => {
+    await logout();
+    router.replace("/");
+  };
+
   return (
     <Stack
       screenOptions={{
@@ -12,6 +22,11 @@ export default function DriverLayout() {
           fontWeight: "bold",
           color: "#FFC107",
         },
+        headerRight: () => (
+          <TouchableOpacity onPress={handleLogout} style={{ marginRight: 10 }}>
+            <Text style={{ color: "#FFC107", fontWeight: "bold" }}>Logout</Text>
+          </TouchableOpacity>
+        ),
       }}
     >
       <Stack.Screen name="home" options={{ title: "Available Rides" }} />

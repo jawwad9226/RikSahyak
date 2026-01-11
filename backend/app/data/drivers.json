@@ -1,0 +1,25 @@
+{
+  "drivers": [
+    {
+      "driver_id": "DRV-1001",
+      "name": "Ramesh",
+      "phone": "+91-900000001",
+      "vehicle_number": "MH-28-AB-1234",
+      "coords": { "latitude": 20.8875, "longitude": 76.2055 }
+    },
+    {
+      "driver_id": "DRV-1002",
+      "name": "Suresh",
+      "phone": "+91-900000002",
+      "vehicle_number": "MH-28-CD-5678",
+      "coords": { "latitude": 20.8890, "longitude": 76.2100 }
+    },
+    {
+      "driver_id": "DRV-1003",
+      "name": "Mahesh",
+      "phone": "+91-900000003",
+      "vehicle_number": "MH-28-EF-9012",
+      "coords": { "latitude": 20.8825, "longitude": 76.2005 }
+    }
+  ]
+}

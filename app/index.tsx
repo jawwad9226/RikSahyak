@@ -1,52 +1,50 @@
+import { RoleSelectionModal } from "@/src/components/RoleSelectionModal";
+import { useUser } from "@/src/context/UserContext";
 import { useRouter } from "expo-router";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { useEffect, useState } from "react";
+import { ActivityIndicator, StyleSheet, View } from "react-native";
 
 export default function Index() {
   const router = useRouter();
+  const { user, loading, setUser } = useUser();
+  const [showModal, setShowModal] = useState(false);
 
-  const handleRoleSelect = (role: "driver" | "passenger" | "admin") => {
-    router.push(`/${role}/home`);
+  // If user is already set, navigate to their role screen
+  useEffect(() => {
+    if (!loading && user) {
+      router.replace(`/${user.role}`);
+    } else if (!loading && !user) {
+      setShowModal(true);
+    }
+  }, [user, loading]);
+
+  const handleSelectUser = async (selected: { user_id: string; name?: string; role: "passenger" | "driver" | "admin" }) => {
+    await setUser(selected);
+    setShowModal(false);
+    router.replace(`/${selected.role}`);
   };
 
+  if (loading) {
+    return (
+      <View style={styles.center}>
+        <ActivityIndicator size="large" />
+      </View>
+    );
+  }
+
   return (
-    <View style={styles.container}>
-      <Text style={styles.title}>RikSahayak</Text>
-      <Text style={styles.subtitle}>Auto Rickshaw Booking</Text>
-      <Text style={styles.instruction}>Please Select your Role</Text>
-
-      {/* Driver Button */}
-      <Pressable
-        style={({ pressed }) => [styles.button, styles.driverButton, pressed && styles.pressed]}
-        onPress={() => handleRoleSelect("driver")}
-      >
-        <Text style={[styles.buttonText, styles.driverText]}>🚗 Driver</Text>
-      </Pressable>
-
-      {/* Passenger Button */}
-      <Pressable
-        style={({ pressed }) => [styles.button, styles.passengerButton, pressed && styles.pressed]}
-        onPress={() => handleRoleSelect("passenger")}
-      >
-        <Text style={[styles.buttonText, styles.passengerText]}>👤 Passenger</Text>
-      </Pressable>
-
-      {/* Admin Button */}
-      <Pressable
-        style={({ pressed }) => [styles.button, styles.adminButton, pressed && styles.pressed]}
-        onPress={() => handleRoleSelect("admin")}
-      >
-        <Text style={[styles.buttonText, styles.adminText]}>📊 Admin</Text>
-      </Pressable>
-    </View>
+    <>
+      <RoleSelectionModal visible={showModal} onSelect={handleSelectUser} />
+    </>
   );
 }
+
 const styles = StyleSheet.create({
-  container: {
+  center: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
     backgroundColor: "#FFF",
-    paddingHorizontal: 20,
   },
   title: {
     fontSize: 36,

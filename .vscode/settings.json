@@ -3,5 +3,17 @@
     "source.fixAll": "explicit",
     "source.organizeImports": "explicit",
     "source.sortMembers": "explicit"
-  }
+  },
+  "python-envs.defaultEnvManager": "ms-python.python:conda",
+  "python-envs.defaultPackageManager": "ms-python.python:conda",
+  "python.terminal.activateEnvironment": false,
+  "terminal.integrated.inheritEnv": false,
+  "terminal.integrated.profiles.linux": {
+    "RikSahyak-Zsh": {
+      "path": "/usr/bin/zsh",
+      "args": ["-l", "-i", "-c", "conda activate riksahyak; exec zsh"],
+      "icon": "terminal-ubuntu"
+    }
+  },
+  "terminal.integrated.defaultProfile.linux": "RikSahyak-Zsh"
 }

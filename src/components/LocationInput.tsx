@@ -52,7 +52,7 @@ export default function LocationInput({
     setLoading(true);
     try {
       // Adjust IP as needed
-      const API_URL = 'http://192.168.2.6:8000'; // Update with your IP
+      const API_URL = 'http://192.168.2.5:8000'; // Update with your IP
       
       const response = await fetch(`${API_URL}/api/v1/rides/search-location`, {
         method: 'POST',

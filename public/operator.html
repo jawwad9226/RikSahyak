@@ -1,0 +1,543 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Operator Portal - RikSahyak</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+            max-width: 800px;
+            width: 100%;
+        }
+        
+        .header {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            padding: 30px;
+            border-radius: 12px 12px 0 0;
+            text-align: center;
+        }
+        
+        .header h1 {
+            font-size: 28px;
+            margin-bottom: 5px;
+        }
+        
+        .header p {
+            opacity: 0.9;
+            font-size: 14px;
+        }
+        
+        .content {
+            padding: 30px;
+        }
+        
+        .call-info {
+            background: #f8f9fa;
+            border-left: 4px solid #667eea;
+            padding: 20px;
+            border-radius: 8px;
+            margin-bottom: 25px;
+        }
+        
+        .call-info h2 {
+            font-size: 16px;
+            color: #333;
+            margin-bottom: 15px;
+            display: flex;
+            align-items: center;
+        }
+        
+        .call-info h2::before {
+            content: "☎️";
+            margin-right: 10px;
+        }
+        
+        .call-detail {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+            margin-bottom: 15px;
+        }
+        
+        .call-detail-item {
+            padding: 12px;
+            background: white;
+            border-radius: 6px;
+            border: 1px solid #e0e0e0;
+        }
+        
+        .call-detail-label {
+            font-size: 12px;
+            color: #666;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 5px;
+        }
+        
+        .call-detail-value {
+            font-size: 16px;
+            font-weight: 500;
+            color: #333;
+        }
+        
+        .transcript {
+            background: white;
+            border: 1px solid #e0e0e0;
+            border-radius: 6px;
+            padding: 15px;
+            margin-bottom: 20px;
+            max-height: 200px;
+            overflow-y: auto;
+            font-size: 13px;
+            line-height: 1.6;
+        }
+        
+        .transcript-item {
+            margin-bottom: 10px;
+            padding-bottom: 10px;
+            border-bottom: 1px solid #f0f0f0;
+        }
+        
+        .transcript-item:last-child {
+            border-bottom: none;
+            margin-bottom: 0;
+            padding-bottom: 0;
+        }
+        
+        .speaker {
+            font-weight: 600;
+            color: #667eea;
+            font-size: 12px;
+            text-transform: uppercase;
+            margin-bottom: 3px;
+        }
+        
+        .message {
+            color: #555;
+        }
+        
+        .form-group {
+            margin-bottom: 20px;
+        }
+        
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            font-weight: 600;
+            color: #333;
+            font-size: 14px;
+        }
+        
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 1px solid #ddd;
+            border-radius: 6px;
+            font-size: 14px;
+            font-family: inherit;
+        }
+        
+        .form-group textarea {
+            resize: vertical;
+            min-height: 60px;
+        }
+        
+        .form-row {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }
+        
+        .button-group {
+            display: grid;
+            grid-template-columns: 1fr 1fr 1fr;
+            gap: 12px;
+            margin-top: 25px;
+        }
+        
+        .btn {
+            padding: 12px 20px;
+            border: none;
+            border-radius: 6px;
+            font-size: 14px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .btn-call {
+            background: #17a2b8;
+            color: white;
+        }
+        
+        .btn-call:hover {
+            background: #138496;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(23, 162, 184, 0.3);
+        }
+        
+        .btn-create {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            grid-column: 1 / 3;
+        }
+        
+        .btn-create:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 8px 20px rgba(102, 126, 234, 0.4);
+        }
+        
+        .btn-handled {
+            background: #28a745;
+            color: white;
+        }
+        
+        .btn-handled:hover {
+            background: #218838;
+            transform: translateY(-2px);
+            box-shadow: 0 8px 16px rgba(40, 167, 69, 0.3);
+        }
+        
+        .status-badge {
+            display: inline-block;
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            font-weight: 600;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        
+        .status-incoming {
+            background: #fff3cd;
+            color: #856404;
+        }
+        
+        .status-success {
+            background: #d4edda;
+            color: #155724;
+        }
+        
+        .message-alert {
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            display: none;
+        }
+        
+        .message-alert.show {
+            display: block;
+        }
+        
+        .message-alert.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        
+        .message-alert.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+        
+        .spinner {
+            display: inline-block;
+            width: 14px;
+            height: 14px;
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 50%;
+            border-top-color: white;
+            animation: spin 0.6s linear infinite;
+            margin-right: 8px;
+        }
+        
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+        
+        .info-box {
+            background: #e7f3ff;
+            border-left: 4px solid #2196F3;
+            padding: 15px;
+            border-radius: 6px;
+            margin-bottom: 20px;
+            font-size: 13px;
+            color: #0d47a1;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>Operator Portal</h1>
+            <p>Incoming Call Booking Assistant</p>
+        </div>
+        
+        <div class="content">
+            <div class="message-alert" id="messageAlert"></div>
+            
+            <div class="call-info">
+                <h2>Incoming Call Details</h2>
+                <div class="call-detail">
+                    <div class="call-detail-item">
+                        <div class="call-detail-label">Caller ID</div>
+                        <div class="call-detail-value" id="callerId">+91-9876543210</div>
+                    </div>
+                    <div class="call-detail-item">
+                        <div class="call-detail-label">Status</div>
+                        <div class="call-detail-value">
+                            <span class="status-badge status-incoming">Incoming</span>
+                        </div>
+                    </div>
+                    <div class="call-detail-item">
+                        <div class="call-detail-label">Timestamp</div>
+                        <div class="call-detail-value" id="callTime">Just now</div>
+                    </div>
+                    <div class="call-detail-item">
+                        <div class="call-detail-label">Duration</div>
+                        <div class="call-detail-value" id="callDuration">2:34</div>
+                    </div>
+                </div>
+                
+                <div style="margin-top: 15px;">
+                    <div class="call-detail-label">Call Transcript</div>
+                    <div class="transcript" id="transcript">
+                        <div class="transcript-item">
+                            <div class="speaker">Passenger</div>
+                            <div class="message">Hi, I need a rickshaw from Malkapur main market to the railway station</div>
+                        </div>
+                        <div class="transcript-item">
+                            <div class="speaker">AI Assistant</div>
+                            <div class="message">Sure! I have your pickup location. What about dropoff?</div>
+                        </div>
+                        <div class="transcript-item">
+                            <div class="speaker">Passenger</div>
+                            <div class="message">Railway station near the main entrance, please</div>
+                        </div>
+                        <div class="transcript-item">
+                            <div class="speaker">Passenger</div>
+                            <div class="message">Can I speak to someone? I need special arrangements for my elderly mother</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <form id="rideForm">
+                <div class="form-group">
+                    <label>Passenger Phone (from call)</label>
+                    <input type="tel" id="passengerPhone" value="+91-9876543210" required>
+                </div>
+                
+                <div class="form-group">
+                    <label>Passenger Name</label>
+                    <input type="text" id="passengerName" placeholder="e.g., Rajesh Kumar" required>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Pickup Location</label>
+                        <input type="text" id="pickupLocation" placeholder="e.g., Malkapur Main Market" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Pickup Latitude</label>
+                        <input type="number" id="pickupLat" step="0.0001" placeholder="e.g., 19.2183" required>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Dropoff Location</label>
+                        <input type="text" id="dropoffLocation" placeholder="e.g., Railway Station" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Dropoff Latitude</label>
+                        <input type="number" id="dropoffLat" step="0.0001" placeholder="e.g., 19.2200" required>
+                    </div>
+                </div>
+                
+                <div class="form-row">
+                    <div class="form-group">
+                        <label>Pickup Longitude</label>
+                        <input type="number" id="pickupLng" step="0.0001" placeholder="e.g., 75.5678" required>
+                    </div>
+                    <div class="form-group">
+                        <label>Dropoff Longitude</label>
+                        <input type="number" id="dropoffLng" step="0.0001" placeholder="e.g., 75.5700" required>
+                    </div>
+                </div>
+                
+                <div class="form-group">
+                    <label>Special Notes</label>
+                    <textarea id="specialNotes" placeholder="e.g., Elderly passenger, needs careful driving..."></textarea>
+                </div>
+                
+                <div class="button-group">
+                    <button type="button" class="btn btn-call" id="callBtn">☎️ Call Passenger</button>
+                    <button type="submit" class="btn btn-create" id="createBtn">✓ Create Ride</button>
+                    <button type="button" class="btn btn-handled" id="handledBtn" style="display: none;">✓ Mark Handled</button>
+                </div>
+            </form>
+            
+            <div class="info-box" style="margin-top: 20px;">
+                ℹ️ Fill in the parsed details from the call transcript and click "Create Ride" to book the passenger. 
+                Use "Call Passenger" to dial back if needed.
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        const API_BASE = 'http://localhost:8000/api/v1';
+        
+        // Initialize form with sample data
+        document.getElementById('pickupLat').value = '19.2183';
+        document.getElementById('pickupLng').value = '75.5678';
+        document.getElementById('dropoffLat').value = '19.2200';
+        document.getElementById('dropoffLng').value = '75.5700';
+        
+        // Call button
+        document.getElementById('callBtn').addEventListener('click', function() {
+            const phone = document.getElementById('passengerPhone').value;
+            if (phone) {
+                window.location.href = `tel:${phone.replace(/[^0-9+]/g, '')}`;
+            }
+        });
+        
+        // Form submission
+        document.getElementById('rideForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const createBtn = document.getElementById('createBtn');
+            const handledBtn = document.getElementById('handledBtn');
+            
+            try {
+                createBtn.disabled = true;
+                createBtn.innerHTML = '<span class="spinner"></span> Creating...';
+                
+                // Parse form data
+                const pickupLat = parseFloat(document.getElementById('pickupLat').value);
+                const pickupLng = parseFloat(document.getElementById('pickupLng').value);
+                const dropoffLat = parseFloat(document.getElementById('dropoffLat').value);
+                const dropoffLng = parseFloat(document.getElementById('dropoffLng').value);
+                
+                // Calculate distance (simple Haversine)
+                const distance = calculateDistance(pickupLat, pickupLng, dropoffLat, dropoffLng);
+                
+                const payload = {
+                    passenger_id: `passenger_${Date.now()}`,
+                    passenger_name: document.getElementById('passengerName').value,
+                    passenger_phone: document.getElementById('passengerPhone').value,
+                    pickup_location: document.getElementById('pickupLocation').value,
+                    dropoff_location: document.getElementById('dropoffLocation').value,
+                    pickup_coords: {
+                        latitude: pickupLat,
+                        longitude: pickupLng
+                    },
+                    dropoff_coords: {
+                        latitude: dropoffLat,
+                        longitude: dropoffLng
+                    },
+                    distance_km: distance.toFixed(2),
+                    estimated_fare: (50 + distance * 12).toFixed(2),
+                    special_notes: document.getElementById('specialNotes').value,
+                    operator_id: 'operator_demo'
+                };
+                
+                // Create ride via operator endpoint
+                const response = await fetch(`${API_BASE}/operator/create-ride`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify(payload)
+                });
+                
+                const result = await response.json();
+                
+                if (!response.ok) {
+                    throw new Error(result.detail?.error || result.detail || 'Failed to create ride');
+                }
+                
+                // Show success
+                showMessage(`✓ Ride created successfully! ID: ${result.ride_id}`, 'success');
+                
+                // Show "Mark Handled" button
+                createBtn.style.display = 'none';
+                handledBtn.style.display = 'flex';
+                
+                // Disable form inputs
+                document.querySelectorAll('#rideForm input, #rideForm textarea').forEach(el => {
+                    el.disabled = true;
+                });
+                
+                // Mark handled button
+                handledBtn.addEventListener('click', function() {
+                    resetForm();
+                });
+                
+            } catch (error) {
+                showMessage(`Error: ${error.message}`, 'error');
+                createBtn.innerHTML = '✓ Create Ride';
+                createBtn.disabled = false;
+            }
+        });
+        
+        function calculateDistance(lat1, lng1, lat2, lng2) {
+            const R = 6371; // Earth's radius in km
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+        }
+        
+        function showMessage(text, type) {
+            const alert = document.getElementById('messageAlert');
+            alert.textContent = text;
+            alert.className = `message-alert show ${type}`;
+            setTimeout(() => {
+                alert.classList.remove('show');
+            }, 5000);
+        }
+        
+        function resetForm() {
+            document.getElementById('rideForm').reset();
+            document.getElementById('createBtn').style.display = 'flex';
+            document.getElementById('handledBtn').style.display = 'none';
+            document.getElementById('createBtn').disabled = false;
+            document.getElementById('createBtn').innerHTML = '✓ Create Ride';
+            document.querySelectorAll('#rideForm input, #rideForm textarea').forEach(el => {
+                el.disabled = false;
+            });
+            showMessage('✓ Ready for next call', 'success');
+        }
+    </script>
+</body>
+</html>

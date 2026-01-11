@@ -22,6 +22,7 @@ app.add_middleware(
 # Include API routers
 app.include_router(endpoints.router, prefix=API_PREFIX)
 app.include_router(endpoints.admin_router, prefix=API_PREFIX)
+app.include_router(endpoints.operator_router, prefix=API_PREFIX)
 app.include_router(websocket.router, prefix=API_PREFIX)
 
 

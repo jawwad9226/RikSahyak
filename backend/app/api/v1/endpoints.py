@@ -34,6 +34,7 @@ from app.services.ride_firestore import (
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/rides", tags=["rides"])
 admin_router = APIRouter(tags=["admin"])
+operator_router = APIRouter(prefix="/operator", tags=["operator"])
 
 
 class LocationSearchRequest(BaseModel):
@@ -455,3 +456,64 @@ async def get_admin_stats():
     except Exception as e:
         logger.error(f"Failed to get admin stats: {e}")
         raise HTTPException(status_code=500, detail="Failed to fetch admin statistics")
+
+
+# Operator endpoints
+class OperatorCreateRideRequest(BaseModel):
+    """Operator-created ride request from call handling"""
+    passenger_id: str
+    passenger_name: str
+    passenger_phone: str
+    pickup_location: str
+    dropoff_location: str
+    pickup_coords: dict
+    dropoff_coords: dict
+    distance_km: str
+    estimated_fare: str
+    special_notes: str = ""
+    operator_id: str
+
+
+@operator_router.post("/create-ride")
+async def operator_create_ride(ride_data: OperatorCreateRideRequest):
+    """
+    Operator fallback endpoint to create rides from incoming calls.
+    Used when AI POC fails or passenger requests human operator.
+    
+    Returns 409 Conflict if passenger already has an active ride.
+    """
+    try:
+        record = {
+            "status": RIDE_REQUESTED,
+            "passenger_id": ride_data.passenger_id,
+            "passenger_name": ride_data.passenger_name,
+            "passenger_phone": ride_data.passenger_phone,
+            "pickup_location": ride_data.pickup_location,
+            "dropoff_location": ride_data.dropoff_location,
+            "pickup_coords": ride_data.pickup_coords,
+            "dropoff_coords": ride_data.dropoff_coords,
+            "estimated_fare": ride_data.estimated_fare,
+            "distance_km": ride_data.distance_km,
+            "special_notes": ride_data.special_notes,
+            "operator_id": ride_data.operator_id,
+            "driver_id": None,
+            "candidate_drivers": [],
+            "created_by": "operator",
+        }
+        ride_id = create_ride(record)
+        
+        logger.info(f"Operator {ride_data.operator_id} created ride {ride_id} for {ride_data.passenger_name}")
+        
+        return {
+            "ride_id": ride_id,
+            "status": RIDE_REQUESTED,
+            "message": f"Operator ride created for {ride_data.passenger_name}",
+            "passenger_phone": ride_data.passenger_phone,
+            "special_notes": ride_data.special_notes,
+        }
+    except RideConflictError as e:
+        logger.warning(f"Operator ride conflict: {e.message}")
+        raise HTTPException(status_code=409, detail={"error": e.message, "code": e.code})
+    except Exception as e:
+        logger.error(f"Error creating operator ride: {e}")
+        raise HTTPException(status_code=500, detail=str(e))

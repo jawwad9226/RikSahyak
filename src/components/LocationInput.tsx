@@ -19,6 +19,7 @@ interface LocationResult {
   landmark?: string;
   display_name?: string;
   similarity?: number;
+  source?: 'local' | 'osm' | 'mapmyindia';
 }
 
 interface LocationInputProps {
@@ -37,12 +38,13 @@ export default function LocationInput({
   const [query, setQuery] = useState(currentValue);
   const [results, setResults] = useState<LocationResult[]>([]);
   const [loading, setLoading] = useState(false);
+  const [typing, setTyping] = useState(false);
   const [selectedLocation, setSelectedLocation] = useState<LocationResult | null>(null);
   const [showResults, setShowResults] = useState(false);
 
   // Search locations from backend
   const searchLocations = async (searchQuery: string) => {
-    if (searchQuery.length < 2) {
+    if (searchQuery.length < 3) {
       setResults([]);
       return;
     }
@@ -60,28 +62,18 @@ export default function LocationInput({
 
       if (response.ok) {
         const data = await response.json();
-        // Combine all results and remove duplicates
-        const allResults = [
-          ...data.exact_matches,
-          ...data.fuzzy_matches,
-          ...data.nominatim_results,
-        ];
+        // Use the new 'results' field which already has exclusive fallback ranking applied
+        const results = data.results || [];
         
-        // Remove duplicates based on coordinates
-        const uniqueResults = allResults.reduce(
-          (acc: LocationResult[], curr) => {
-            const isDuplicate = acc.some(
-              (r) => r.latitude === curr.latitude && r.longitude === curr.longitude
-            );
-            if (!isDuplicate) {
-              acc.push(curr);
-            }
-            return acc;
-          },
-          []
-        );
+        // Results already have 'source' field from backend
+        // Just need to add display badges and limit to 8
+        const displayResults = results.slice(0, 8).map((r: LocationResult) => ({
+          ...r,
+          // Ensure source field exists (for badge display)
+          source: r.source || 'local',
+        }));
 
-        setResults(uniqueResults.slice(0, 8)); // Limit to 8 results
+        setResults(displayResults);
         setShowResults(true);
       }
     } catch (error) {
@@ -92,21 +84,29 @@ export default function LocationInput({
     }
   };
 
-  // Debounce search
+  // Debounce search with 700ms delay (respects API limits)
   useEffect(() => {
     // Don't search if we just selected a location
     if (selectedLocation) {
       return;
     }
 
+    // Show typing state immediately for queries >= 3 chars
+    if (query.length >= 3) {
+      setTyping(true);
+    } else {
+      setTyping(false);
+    }
+
     const timer = setTimeout(() => {
-      if (query.length > 1) {
+      setTyping(false);
+      if (query.length >= 3) {
         searchLocations(query);
       } else {
         setResults([]);
         setShowResults(false);
       }
-    }, 300); // 300ms delay
+    }, 700); // 700ms debounce (respects MapmyIndia rate limits)
 
     return () => clearTimeout(timer);
   }, [query, selectedLocation]);
@@ -121,7 +121,7 @@ export default function LocationInput({
 
   const handleInputFocus = () => {
     // Only show results if we have a query and results, but not if we just selected something
-    if (query.length > 1 && results.length > 0 && !selectedLocation) {
+    if (query.length >= 3 && results.length > 0 && !selectedLocation) {
       setShowResults(true);
     }
   };
@@ -144,6 +144,9 @@ export default function LocationInput({
           style={styles.input}
           placeholderTextColor="#999"
         />
+        {typing && !loading && (
+          <Text style={styles.typingIndicator}>✍️</Text>
+        )}
         {loading && <ActivityIndicator color={colors.primary} style={styles.loader} />}
       </View>
 
@@ -176,8 +179,20 @@ export default function LocationInput({
               ]}
               hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
             >
-              <View>
-                <Text style={styles.resultName}>{result.name}</Text>
+              <View style={styles.resultContent}>
+                <View style={styles.resultHeader}>
+                  <Text style={styles.resultName}>{result.name}</Text>
+                  {result.source && (
+                    <Text style={[
+                      styles.sourceBadge,
+                      result.source === 'local' && styles.sourceBadgeLocal,
+                      result.source === 'osm' && styles.sourceBadgeOSM,
+                      result.source === 'mapmyindia' && styles.sourceBadgeMapmyIndia,
+                    ]}>
+                      {result.source === 'local' ? '📍' : result.source === 'osm' ? '🗺️' : '🇮🇳'}
+                    </Text>
+                  )}
+                </View>
                 {result.landmark && (
                   <Text style={styles.resultSubtitle}>{result.landmark}</Text>
                 )}
@@ -196,9 +211,14 @@ export default function LocationInput({
         </ScrollView>
       )}
 
-      {showResults && results.length === 0 && query.length > 1 && !loading && (
+      {showResults && results.length === 0 && query.length >= 3 && !loading && !typing && (
         <View style={styles.noResults}>
           <Text style={styles.noResultsText}>No locations found</Text>
+        </View>
+      )}
+      {query.length > 0 && query.length < 3 && !selectedLocation && (
+        <View style={styles.minCharsHint}>
+          <Text style={styles.minCharsText}>Type at least 3 characters to search</Text>
         </View>
       )}
     </View>
@@ -233,6 +253,10 @@ const styles = StyleSheet.create({
   loader: {
     marginLeft: 8,
   },
+  typingIndicator: {
+    marginLeft: 8,
+    fontSize: 16,
+  },
   resultsList: {
     maxHeight: 250,
     marginTop: 8,
@@ -249,6 +273,14 @@ const styles = StyleSheet.create({
     paddingVertical: 10,
     borderBottomWidth: 1,
     borderBottomColor: '#eee',
+  },
+  resultContent: {
+    flex: 1,
+  },
+  resultHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 6,
   },
   resultItemPressed: {
     backgroundColor: '#fff9e6',
@@ -309,5 +341,33 @@ const styles = StyleSheet.create({
     fontSize: 11,
     color: '#999',
     fontFamily: 'monospace',
+  },
+  sourceBadge: {
+    fontSize: 14,
+    paddingHorizontal: 4,
+    paddingVertical: 2,
+  },
+  sourceBadgeLocal: {
+    // Green for local database
+  },
+  sourceBadgeOSM: {
+    // Blue for OpenStreetMap
+  },
+  sourceBadgeMapmyIndia: {
+    // Orange for MapmyIndia
+  },
+  minCharsHint: {
+    marginTop: 6,
+    paddingVertical: 8,
+    paddingHorizontal: 12,
+    backgroundColor: '#fff9e6',
+    borderRadius: 6,
+    borderLeftWidth: 3,
+    borderLeftColor: colors.primary,
+  },
+  minCharsText: {
+    fontSize: 12,
+    color: '#666',
+    fontStyle: 'italic',
   },
 });

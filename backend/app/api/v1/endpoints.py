@@ -1,5 +1,6 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
+import logging
 from app.core.schemas import (
     FareCalculationRequest,
     FareCalculationResponse,
@@ -12,10 +13,12 @@ from app.services.fare_calculator import (
     search_location,
     get_location_info,
 )
+from app.services.nominatim_service import smart_search_async  # Import ASYNC version
 from app.services.location_ai import log_search_interaction, get_ai_statistics
 from app.services.matching_engine import find_nearby_drivers
 from app.core.locations_db import get_all_locations, increment_search_count
 
+logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/rides", tags=["rides"])
 
 
@@ -56,36 +59,65 @@ async def calculate_ride_fare(request: FareCalculationRequest):
 @router.post("/search-location", tags=["locations"])
 async def search_location_endpoint(request: LocationSearchRequest):
     """
-    Search for locations using:
-    1. Local Malkapur database (instant, exact matches)
-    2. Fuzzy matching (typo tolerance)
-    3. Nominatim (street-level details from OpenStreetMap)
+    DETERMINISTIC multi-source location search.
     
-    AI learns from searches to improve suggestions.
+    EXCLUSIVE FALLBACK RANKING:
+    1. Exact match from local database
+    2. Prefix match from local database
+    3. Substring match from local database
+    4. OpenStreetMap results (if no local matches)
+    5. MapmyIndia results (only if no local/OSM AND query >= 5 chars)
+    
+    HARD GATES:
+    - MapmyIndia NEVER called for query length < 5
+    - All results within 10km Malkapur radius
+    - Max 10 results returned
+    - Fail-closed on external API errors (no retries, no blocking)
     
     Args:
-        query: Location search query (e.g., "railway station")
+        query: Location search query (e.g., "hospital", "pilu takiya")
     
     Returns:
         {
-            'exact_matches': [...],
-            'fuzzy_matches': [...],
-            'nominatim_results': [...],
-            'all_results': [...] # Combined and ranked
+            'results': [  # Final merged results (max 10)
+                {
+                    'name': str,
+                    'latitude': float,
+                    'longitude': float,
+                    'source': 'local' | 'osm' | 'mapmyindia',
+                    'match_type': 'exact' | 'prefix' | 'substring' (local only),
+                    'distance_km': float,
+                    ...
+                }
+            ],
+            'local_results': [...],  # For debugging
+            'osm_results': [...],
+            'mapmyindia_results': [...],
+            'search_metadata': {
+                'query': str,
+                'query_length': int,
+                'local_found': bool,
+                'osm_searched': bool,
+                'mapmyindia_called': bool,
+                'total_results': int,
+            }
         }
     """
     try:
         location_database = get_all_locations()
-        results = search_location(request.query, location_database)
+        # ✅ ASYNC search with exclusive fallback
+        results = await smart_search_async(request.query, location_database)
         
-        # Log search for AI learning (if exact match found)
-        if results.get('exact_matches'):
-            first_match = results['exact_matches'][0]
-            log_search_interaction(request.query, first_match['id'], first_match['name'])
-            increment_search_count(first_match['id'])
+        # Log successful exact matches for AI learning
+        if results.get('local_results'):
+            first_match = results['local_results'][0]
+            if first_match.get('match_type') == 'exact':
+                log_search_interaction(request.query, first_match['id'], first_match['name'])
+                increment_search_count(first_match['id'])
         
         return results
     except Exception as e:
+        logger.error(f"[ENDPOINT] Search failed for query '{request.query}': {str(e)}")
         raise HTTPException(status_code=400, detail=str(e))
 
 

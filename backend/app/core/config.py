@@ -7,6 +7,12 @@ load_dotenv()
 FIREBASE_CREDENTIALS_PATH = os.getenv("FIREBASE_CREDENTIALS_PATH", "./firebase-credentials.json")
 FIREBASE_DATABASE_URL = os.getenv("FIREBASE_DATABASE_URL", "")
 
+# MapmyIndia (Mappls) API Config
+# Get your FREE API key from: https://mappls.com/api
+MAPPLS_API_KEY = os.getenv("MAPPLS_API_KEY", "YOUR_MAPPLS_API_KEY_HERE")
+MAPPLS_CLIENT_ID = os.getenv("MAPPLS_CLIENT_ID", "")
+MAPPLS_CLIENT_SECRET = os.getenv("MAPPLS_CLIENT_SECRET", "")
+
 # API Config
 API_PREFIX = "/api/v1"
 API_VERSION = "1.0.0"

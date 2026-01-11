@@ -1,8 +1,7 @@
  import LocationInput from "@/src/components/LocationInput";
-import LocationMap from "@/src/components/LocationMap";
 import { colors } from "@/src/utils/colors";
 import { useState } from "react";
-import { ActivityIndicator, Linking, Modal, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 interface LocationResult {
   name: string;
@@ -19,7 +18,6 @@ export default function PassengerHome() {
   const [distance, setDistance] = useState<number | null>(null);
   const [estimatedTime, setEstimatedTime] = useState<number | null>(null);
   const [loading, setLoading] = useState(false);
-  const [showMap, setShowMap] = useState(false);
   const [distanceMethod, setDistanceMethod] = useState<string>("");
 
   const handleCalculateFare = async () => {
@@ -149,17 +147,10 @@ export default function PassengerHome() {
           </View>
 
           <Pressable
-            style={({ pressed }) => [styles.mapButton, pressed && styles.pressed]}
-            onPress={() => setShowMap(true)}
-          >
-            <Text style={styles.mapButtonText}>🗺️ View Route on Map</Text>
-          </Pressable>
-
-          <Pressable
-            style={({ pressed }) => [styles.externalMapButton, pressed && styles.pressed]}
+            style={({ pressed }) => [styles.navigationButton, pressed && styles.pressed]}
             onPress={handleOpenInGoogleMaps}
           >
-            <Text style={styles.externalMapButtonText}>Open in Google Maps (Navigation)</Text>
+            <Text style={styles.navigationButtonText}>🗺️ Navigate with Google Maps</Text>
           </Pressable>
         </>
       )}
@@ -177,33 +168,6 @@ export default function PassengerHome() {
         💡 Fares are calculated using real street routing for accuracy
       </Text>
     </ScrollView>
-
-    <Modal visible={showMap} animationType="slide" onRequestClose={() => setShowMap(false)}>
-      {(pickupLocation && dropoffLocation && typeof pickupLocation.latitude === 'number' && typeof dropoffLocation.latitude === 'number') ? (
-          <LocationMap
-            pickup={pickupLocation ? {
-              latitude: pickupLocation.latitude,
-              longitude: pickupLocation.longitude,
-              name: pickupLocation.name,
-            } : undefined}
-            dropoff={dropoffLocation ? {
-              latitude: dropoffLocation.latitude,
-              longitude: dropoffLocation.longitude,
-              name: dropoffLocation.name,
-            } : undefined}
-            distance={distance || undefined}
-            showDistance={true}
-            onClose={() => setShowMap(false)}
-          />
-      ) : (
-        <View style={{ flex: 1, justifyContent: 'center', alignItems: 'center' }}>
-          <Text style={{ color: 'red', fontSize: 16 }}>Invalid location data. Please select both locations again.</Text>
-          <Pressable onPress={() => setShowMap(false)} style={{ marginTop: 20 }}>
-            <Text style={{ color: colors.primary, fontWeight: 'bold' }}>Close</Text>
-          </Pressable>
-        </View>
-      )}
-    </Modal>
   </>
   );
 }

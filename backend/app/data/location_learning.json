@@ -11,10 +11,21 @@
     },
     "malkapur_market": {
       "malkapur market": 1
+    },
+    "pilu_takiya": {
+      "pilu takiya": 4,
+      "pilutakiya": 4
+    },
+    "teachers_colony_tajnagar": {
+      "teachers colony": 3
     }
   },
-  "alternatives": {},
+  "alternatives": {
+    "pilu_takiya": [
+      "pilutakiya"
+    ]
+  },
   "corrections": {},
   "sequences": {},
-  "last_updated": "2025-12-31T12:56:58.045697"
+  "last_updated": "2026-01-11T10:51:21.602444"
 }

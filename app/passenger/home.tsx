@@ -1,10 +1,11 @@
 import LocationInput from "@/src/components/LocationInput";
 import { API_CONFIG } from "@/src/config/env";
 import { useUser } from "@/src/context/UserContext";
-import { createRideRequest, getRideStatus } from "@/src/services/api";
+import { createRideRequest, getRideStatus, flushQueue } from "@/src/services/api";
+import { getQueueStats, getAllQueuedRequests, resetRetryCount } from "@/src/utils/asyncStorageQueue";
 import { colors } from "@/src/utils/colors";
-import { useRouter } from "expo-router";
-import { useEffect, useState } from "react";
+import { useRouter, useFocusEffect } from "expo-router";
+import { useEffect, useState, useCallback } from "react";
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 interface LocationResult {
@@ -16,7 +17,7 @@ interface LocationResult {
 }
 
 export default function PassengerHome() {
-  const { user } = useUser();
+  const { user, queuedRideId, setQueuedRideId } = useUser();
   const router = useRouter();
   const [pickupLocation, setPickupLocation] = useState<LocationResult | null>(null);
   const [dropoffLocation, setDropoffLocation] = useState<LocationResult | null>(null);
@@ -28,6 +29,28 @@ export default function PassengerHome() {
   const [rideId, setRideId] = useState<string | null>(null);
   const [rideStatus, setRideStatus] = useState<string | null>(null);
   const [statusLoading, setStatusLoading] = useState<boolean>(false);
+  const [queueCount, setQueueCount] = useState(0);
+  const [showQueueModal, setShowQueueModal] = useState(false);
+
+  // Update queue count on focus
+  useFocusEffect(
+    useCallback(() => {
+      (async () => {
+        const stats = await getQueueStats();
+        setQueueCount(stats.total);
+      })();
+    }, [])
+  );
+
+  // Navigate to active ride when queued ride is synced
+  useEffect(() => {
+    if (queuedRideId) {
+      setRideId(queuedRideId);
+      setRideStatus("REQUESTED");
+      setQueuedRideId(undefined);
+      // Will auto-navigate when ride is assigned via polling
+    }
+  }, [queuedRideId, setQueuedRideId]);
 
   const handleCalculateFare = async () => {
     if (!pickupLocation || !dropoffLocation) {
@@ -80,7 +103,7 @@ export default function PassengerHome() {
       return;
     }
 
-    // Minimal request to backend
+    // Minimal request to backend (with offline support)
     (async () => {
       try {
         setStatusLoading(true);
@@ -102,7 +125,13 @@ export default function PassengerHome() {
         if (res.success && res.data) {
           const data: any = res.data;
           setRideId(data.ride_id);
-          setRideStatus(data.status || "REQUESTED");
+          setRideStatus(data.status || (data._queued ? "QUEUED" : "REQUESTED"));
+          
+          // Update queue count if queued
+          if (data._queued) {
+            const stats = await getQueueStats();
+            setQueueCount(stats.total);
+          }
         } else {
           alert("Failed to create ride request");
         }
@@ -113,6 +142,32 @@ export default function PassengerHome() {
         setStatusLoading(false);
       }
     })();
+  };
+
+  const handleRetryQueue = async () => {
+    try {
+      const synced = await flushQueue();
+      if (synced > 0) {
+        alert(`Successfully synced ${synced} queued requests!`);
+        const stats = await getQueueStats();
+        setQueueCount(stats.total);
+      } else {
+        alert("No pending requests to sync");
+      }
+    } catch (error) {
+      alert("Error syncing queue: " + error);
+    }
+  };
+
+  const handleResetQueueItem = async (queueId: string) => {
+    try {
+      await resetRetryCount(queueId);
+      alert("Queue item reset. Will retry on next sync.");
+      const stats = await getQueueStats();
+      setQueueCount(stats.total);
+    } catch (error) {
+      alert("Error resetting queue item: " + error);
+    }
   };
 
   const handleOpenInGoogleMaps = () => {
@@ -129,7 +184,7 @@ export default function PassengerHome() {
   // Poll ride status when we have a rideId
   useEffect(() => {
     if (!rideId) return;
-    if (rideStatus === "COMPLETED") return;
+    if (rideStatus === "COMPLETED" || rideStatus === "QUEUED") return;
 
     const interval = setInterval(async () => {
       try {
@@ -250,9 +305,28 @@ export default function PassengerHome() {
           {rideStatus === "DRIVER_ASSIGNED" && (
             <Text style={styles.statusHint}>Driver assigned. Ride will start soon.</Text>
           )}
+          {rideStatus === "QUEUED" && (
+            <Text style={styles.statusHint}>📡 Queued (offline) — will send when online</Text>
+          )}
           {rideStatus === "COMPLETED" && (
             <Text style={styles.statusHint}>Ride completed. Thank you!</Text>
           )}
+        </View>
+      )}
+
+      {queueCount > 0 && (
+        <View style={styles.queueIndicator}>
+          <Text style={styles.queueIconText}>📋</Text>
+          <View style={styles.queueTextContainer}>
+            <Text style={styles.queueTitle}>{queueCount} Ride Request(s) Queued</Text>
+            <Text style={styles.queueSubtitle}>Offline — waiting for connection</Text>
+          </View>
+          <Pressable
+            style={({ pressed }) => [styles.retryButton, pressed && styles.retryButtonPressed]}
+            onPress={handleRetryQueue}
+          >
+            <Text style={styles.retryButtonText}>Retry</Text>
+          </Pressable>
         </View>
       )}
 
@@ -423,5 +497,50 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#666",
     marginTop: 4,
+  },
+  queueIndicator: {
+    backgroundColor: "#FFF3CD",
+    padding: 12,
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: "#FFD700",
+    marginTop: 15,
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 20,
+  },
+  queueIconText: {
+    fontSize: 24,
+    marginRight: 12,
+  },
+  queueTextContainer: {
+    flex: 1,
+  },
+  queueTitle: {
+    fontSize: 14,
+    fontWeight: "600",
+    color: "#856404",
+    marginBottom: 2,
+  },
+  queueSubtitle: {
+    fontSize: 12,
+    color: "#856404",
+    opacity: 0.7,
+  },
+  retryButton: {
+    backgroundColor: "#FFD700",
+    paddingHorizontal: 12,
+    paddingVertical: 6,
+    borderRadius: 6,
+    borderWidth: 1,
+    borderColor: "#856404",
+  },
+  retryButtonPressed: {
+    opacity: 0.7,
+  },
+  retryButtonText: {
+    fontSize: 12,
+    fontWeight: "600",
+    color: "#856404",
   },
 });

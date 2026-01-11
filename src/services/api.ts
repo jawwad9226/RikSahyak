@@ -2,16 +2,10 @@
 // Uses centralized API client for all requests
 // Includes offline queue management for ride requests
 
-import { apiGet, apiPost } from "./apiClient";
-import { isBackendReachable } from "@/src/utils/connectivityHelpers";
 import {
-  addToQueue,
-  removeFromQueue,
-  incrementRetryCount,
-  getPendingRequests,
-  QueuedRideRequest,
+    QueuedRideRequest
 } from "@/src/utils/asyncStorageQueue";
-import { showToast, showSuccessToast, showErrorToast } from "@/src/utils/toastHelper";
+import { apiGet, apiPost } from "./apiClient";
 
 // Re-export apiClient functions for convenience
 export { apiGet, apiPost };
@@ -56,10 +50,117 @@ export async function calculateFare(
 }
 
 /**
- * Create a ride request
+ * Create a ride request with offline support
+ * If backend reachable: POST immediately
+ * If not reachable: Queue for later sync
  */
-export async function createRideRequest(rideData: any) {
-  return apiPost("/rides/request", rideData);
+export async function createRideRequest(rideData: any): Promise<ApiResponse<any>> {
+  // Check if backend is reachable
+  const isOnline = await isBackendReachable();
+
+  if (isOnline) {
+    // Backend is online, create ride normally
+    try {
+      const response = await apiPost("/rides/request", rideData);
+      return response;
+    } catch (error) {
+      console.error("Error creating ride request:", error);
+      // If online request fails, fallback to queue
+      return handleOfflineRideRequest(rideData);
+    }
+  } else {
+    // Backend is offline, queue the request
+    return handleOfflineRideRequest(rideData);
+  }
+}
+
+/**
+ * Handle offline ride request (queue it)
+ */
+async function handleOfflineRideRequest(rideData: any): Promise<ApiResponse<any>> {
+  try {
+    const queuedItem = await addToQueue(rideData);
+    showToast("Queued (offline) — will send when online", "info");
+    return {
+      success: true,
+      data: {
+        ride_id: queuedItem.id, // Use queue ID as temporary ride ID
+        status: "QUEUED",
+        message: "Ride queued for offline sync",
+        _queued: true, // Mark as queued for UI purposes
+      },
+    };
+  } catch (error) {
+    console.error("Error queuing ride request:", error);
+    return {
+      success: false,
+      error: "Failed to queue ride request",
+    };
+  }
+}
+
+/**
+ * Flush queue: attempt to sync all pending queued requests
+ * Returns count of successfully synced items
+ */
+export async function flushQueue(): Promise<number> {
+  const pending = await getPendingRequests();
+
+  if (pending.length === 0) {
+    return 0;
+  }
+
+  console.log(`[QUEUE] Flushing ${pending.length} pending requests...`);
+
+  let successCount = 0;
+
+  for (const queuedItem of pending) {
+    try {
+      // Check backend reachability before each attempt
+      const isOnline = await isBackendReachable();
+      if (!isOnline) {
+        console.warn("[QUEUE] Backend went offline during flush, stopping");
+        break;
+      }
+
+      // Try to post to backend
+      const response = await apiPost("/rides/request", queuedItem.rideData);
+
+      if (response.success && response.data) {
+        // Success! Remove from queue
+        await removeFromQueue(queuedItem.id);
+        showSuccessToast(`Ride request synced: ${response.data.ride_id}`);
+        successCount++;
+
+        // Notify callback if registered
+        if (queueSyncCallback) {
+          queueSyncCallback(queuedItem, response.data);
+        }
+      } else {
+        // API returned error (e.g., 409 Conflict)
+        const errorMessage = response.error || "Unknown error";
+        console.warn(`[QUEUE] Failed to sync ${queuedItem.id}: ${errorMessage}`);
+
+        // Check if it's a 409 Conflict (passenger already has active ride)
+        if (response.statusCode === 409) {
+          // Mark as failed permanently
+          await incrementRetryCount(queuedItem.id, errorMessage);
+          showErrorToast(
+            `Ride sync failed: ${errorMessage}. Manual retry available.`
+          );
+        } else {
+          // Temporary error, increment retry
+          await incrementRetryCount(queuedItem.id, errorMessage);
+        }
+      }
+    } catch (error: any) {
+      console.error(`[QUEUE] Error syncing queue item ${queuedItem.id}:`, error);
+      const errorMsg = error?.message || "Network error";
+      await incrementRetryCount(queuedItem.id, errorMsg);
+    }
+  }
+
+  return successCount;
 }
 
 /**
@@ -148,4 +249,6 @@ export default {
   cancelRide,
   getAdminStats,
   searchLocation,
+  flushQueue,
+  onQueuedRideSynced,
 };

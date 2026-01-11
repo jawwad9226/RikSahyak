@@ -3,7 +3,7 @@
  * Checks if backend is reachable using health endpoint
  */
 
-import { API_CONFIG, getEndpointUrl } from "@/src/config/env";
+import { getEndpointUrl } from "@/src/config/env";
 
 /**
  * Check if backend is reachable with timeout

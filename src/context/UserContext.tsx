@@ -1,7 +1,7 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { createContext, useContext, useEffect, useState } from "react";
 import { flushQueue, onQueuedRideSynced } from "@/src/services/api";
 import { setupConnectivityListener } from "@/src/utils/connectivityHelpers";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { createContext, useContext, useEffect, useState } from "react";
 
 interface User {
   user_id: string;
@@ -80,7 +80,7 @@ export function UserProvider({ children }: { children: React.ReactNode }) {
   const logout = async () => {
     setUserState(null);
     setQueuedRideId(undefined);
-    await AsyncStorage.removeItem("@user");
+    await AsyncStorage.multiRemove(["@user", "riksahyak:queuedRequests"]);
   };
 
   return (

@@ -1,13 +1,18 @@
 import { useUser } from "@/src/context/UserContext";
 import { Stack, useRouter } from "expo-router";
 import { Text, TouchableOpacity } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function DriverLayout() {
   const router = useRouter();
   const { logout } = useUser();
 
   const handleLogout = async () => {
+    // Clear AsyncStorage keys
+    await AsyncStorage.multiRemove(["@user", "riksahyak:queuedRequests"]);
+    // Update context state
     await logout();
+    // Navigate to role selection
     router.replace("/");
   };
 

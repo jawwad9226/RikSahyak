@@ -1,11 +1,11 @@
 import LocationInput from "@/src/components/LocationInput";
 import { API_CONFIG } from "@/src/config/env";
 import { useUser } from "@/src/context/UserContext";
-import { createRideRequest, getRideStatus, flushQueue } from "@/src/services/api";
-import { getQueueStats, getAllQueuedRequests, resetRetryCount } from "@/src/utils/asyncStorageQueue";
+import { createRideRequest, flushQueue, getRideStatus } from "@/src/services/api";
+import { getQueueStats, resetRetryCount } from "@/src/utils/asyncStorageQueue";
 import { colors } from "@/src/utils/colors";
-import { useRouter, useFocusEffect } from "expo-router";
-import { useEffect, useState, useCallback } from "react";
+import { useFocusEffect, useRouter } from "expo-router";
+import { useCallback, useEffect, useState } from "react";
 import { ActivityIndicator, Linking, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 interface LocationResult {

@@ -223,6 +223,16 @@ export async function cancelRide(rideId: string) {
 }
 
 /**
+ * Update driver progress milestone
+ */
+export async function updateDriverProgress(rideId: string, driverId: string, progress: string) {
+  return apiPost(`/rides/${rideId}/driver-progress`, {
+    driver_id: driverId,
+    progress: progress,
+  });
+}
+
+/**
  * Get admin statistics
  */
 export async function getAdminStats() {

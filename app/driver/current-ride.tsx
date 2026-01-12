@@ -1,12 +1,13 @@
 import { API_CONFIG } from "@/src/config/env";
 import { useUser } from "@/src/context/UserContext";
-import { completeRide, getRideStatus, startRide } from "@/src/services/api";
+import { completeRide, getRideStatus, startRide, updateDriverProgress } from "@/src/services/api";
 import { useEffect, useState } from "react";
 import { Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native";
 
 interface CurrentRide {
   ride_id: string;
   status: string;
+  driver_progress?: string;
   passenger_name: string;
   passenger_phone: string;
   pickup: string;
@@ -15,11 +16,15 @@ interface CurrentRide {
   distance: number;
 }
 
+// Progress states
+type ProgressState = "NOT_STARTED" | "ON_THE_WAY_TO_PICKUP" | "ARRIVED_AT_PICKUP" | "ON_THE_WAY_TO_DROPOFF";
+
 export default function CurrentRide() {
   const { user } = useUser();
   const [currentRide, setCurrentRide] = useState<CurrentRide | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [rideId, setRideId] = useState<string | null>(null);
+  const [isUpdatingProgress, setIsUpdatingProgress] = useState(false);
 
   // Get current ride for this driver
   useEffect(() => {
@@ -66,6 +71,7 @@ export default function CurrentRide() {
           setCurrentRide({
             ride_id: data.id || data.ride_id,
             status: data.status,
+            driver_progress: data.driver_progress,
             passenger_name: data.passenger_name || "Passenger",
             passenger_phone: data.passenger_phone || "",
             pickup: data.pickup_location,
@@ -147,6 +153,46 @@ export default function CurrentRide() {
     );
   };
 
+  const handleUpdateProgress = async (nextProgress: ProgressState) => {
+    if (!rideId || !user?.user_id) return;
+
+    const progressLabels: Record<ProgressState, string> = {
+      NOT_STARTED: "Reset progress",
+      ON_THE_WAY_TO_PICKUP: "On the way to pickup",
+      ARRIVED_AT_PICKUP: "Arrived at pickup",
+      ON_THE_WAY_TO_DROPOFF: "On the way to dropoff",
+    };
+
+    Alert.alert(
+      "Update Progress",
+      `Mark as "${progressLabels[nextProgress]}"?`,
+      [
+        { text: "Cancel", style: "cancel" },
+        { 
+          text: "Update", 
+          onPress: async () => {
+            try {
+              setIsUpdatingProgress(true);
+              const response = await updateDriverProgress(rideId, user.user_id, nextProgress);
+              if (response.success) {
+                if (currentRide) {
+                  setCurrentRide({ ...currentRide, driver_progress: nextProgress });
+                }
+                Alert.alert("Updated", `Progress updated to ${progressLabels[nextProgress]}`);
+              } else {
+                Alert.alert("Error", response.error || "Failed to update progress");
+              }
+            } catch (error) {
+              Alert.alert("Error", "Failed to update progress: " + String(error));
+            } finally {
+              setIsUpdatingProgress(false);
+            }
+          }
+        },
+      ]
+    );
+  };
+
   if (isLoading) {
     return (
       <View style={styles.container}>
@@ -176,6 +222,24 @@ export default function CurrentRide() {
         </Text>
       </View>
 
+      {/* Driver Progress Display */}
+      {currentRide.status !== "completed" && currentRide.status !== "cancelled" && (
+        <View style={styles.progressCard}>
+          <Text style={styles.progressLabel}>Progress:</Text>
+          <Text style={styles.progressValue}>
+            {currentRide.driver_progress === "NOT_STARTED" || !currentRide.driver_progress
+              ? "Not Started"
+              : currentRide.driver_progress === "ON_THE_WAY_TO_PICKUP"
+              ? "On the way to pickup"
+              : currentRide.driver_progress === "ARRIVED_AT_PICKUP"
+              ? "Arrived at pickup"
+              : currentRide.driver_progress === "ON_THE_WAY_TO_DROPOFF"
+              ? "On the way to dropoff"
+              : currentRide.driver_progress}
+          </Text>
+        </View>
+      )}
+
       <View style={styles.infoCard}>
         <View style={styles.passengerInfo}>
           <Text style={styles.label}>Passenger:</Text>
@@ -204,6 +268,56 @@ export default function CurrentRide() {
         >
           <Text style={styles.callButtonText}>Call Passenger</Text>
         </Pressable>
+
+        {/* Progress Update Buttons */}
+        {currentRide.status !== "completed" && currentRide.status !== "cancelled" && (
+          <View style={styles.progressButtonContainer}>
+            {(!currentRide.driver_progress || currentRide.driver_progress === "NOT_STARTED") && (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.progressButton,
+                  styles.progressButtonWay,
+                  pressed && styles.pressed,
+                  isUpdatingProgress && styles.disabled,
+                ]}
+                onPress={() => handleUpdateProgress("ON_THE_WAY_TO_PICKUP")}
+                disabled={isUpdatingProgress}
+              >
+                <Text style={styles.progressButtonText}>On the way</Text>
+              </Pressable>
+            )}
+
+            {currentRide.driver_progress === "ON_THE_WAY_TO_PICKUP" && (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.progressButton,
+                  styles.progressButtonArrive,
+                  pressed && styles.pressed,
+                  isUpdatingProgress && styles.disabled,
+                ]}
+                onPress={() => handleUpdateProgress("ARRIVED_AT_PICKUP")}
+                disabled={isUpdatingProgress}
+              >
+                <Text style={styles.progressButtonText}>Arrived at pickup</Text>
+              </Pressable>
+            )}
+
+            {currentRide.driver_progress === "ARRIVED_AT_PICKUP" && (
+              <Pressable
+                style={({ pressed }) => [
+                  styles.progressButton,
+                  styles.progressButtonDrop,
+                  pressed && styles.pressed,
+                  isUpdatingProgress && styles.disabled,
+                ]}
+                onPress={() => handleUpdateProgress("ON_THE_WAY_TO_DROPOFF")}
+                disabled={isUpdatingProgress}
+              >
+                <Text style={styles.progressButtonText}>Going to drop</Text>
+              </Pressable>
+            )}
+          </View>
+        )}
 
         {currentRide.status === "accepted" && (
           <Pressable
@@ -356,5 +470,56 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.8,
+  },
+  progressCard: {
+    backgroundColor: "#E8F5E9",
+    borderWidth: 2,
+    borderColor: "#4CAF50",
+    borderRadius: 8,
+    padding: 15,
+    marginBottom: 20,
+  },
+  progressLabel: {
+    fontSize: 12,
+    color: "#666",
+    textTransform: "uppercase",
+    fontWeight: "600",
+    marginBottom: 5,
+  },
+  progressValue: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#1B5E20",
+  },
+  progressButtonContainer: {
+    gap: 10,
+    marginBottom: 10,
+  },
+  progressButton: {
+    paddingHorizontal: 20,
+    paddingVertical: 12,
+    borderRadius: 8,
+    alignItems: "center",
+    borderWidth: 2,
+  },
+  progressButtonWay: {
+    backgroundColor: "#FFE082",
+    borderColor: "#F57F17",
+  },
+  progressButtonArrive: {
+    backgroundColor: "#81C784",
+    borderColor: "#2E7D32",
+  },
+  progressButtonDrop: {
+    backgroundColor: "#64B5F6",
+    borderColor: "#1565C0",
+  },
+  progressButtonText: {
+    fontSize: 16,
+    fontWeight: "bold",
+    color: "#FFF",
+  },
+  disabled: {
+    opacity: 0.5,
   },
 });

@@ -7,6 +7,7 @@ import { Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native"
 interface RideStatus {
   ride_id: string;
   status: string;
+  driver_progress?: string;
   passenger: string;
   pickup: string;
   dropoff: string;
@@ -68,6 +69,7 @@ export default function ActiveRide() {
           setRideStatus({
             ride_id: data.id || data.ride_id,
             status: data.status,
+            driver_progress: data.driver_progress,
             passenger: data.passenger_name || "You",
             pickup: data.pickup_location,
             dropoff: data.dropoff_location,
@@ -96,6 +98,33 @@ export default function ActiveRide() {
     } else {
       Alert.alert("Error", "Driver phone number not available");
     }
+  };
+
+  const renderTimeline = () => {
+    const steps = [
+      { id: "assigned", icon: "🚕", label: "Driver Assigned", active: true },
+      { id: "on_way", icon: "🛣", label: "On the Way", active: rideStatus?.driver_progress === "ON_THE_WAY_TO_PICKUP" || rideStatus?.driver_progress === "ARRIVED_AT_PICKUP" || rideStatus?.driver_progress === "ON_THE_WAY_TO_DROPOFF" || rideStatus?.status === "in_progress" },
+      { id: "arrived", icon: "📍", label: "Arrived", active: rideStatus?.driver_progress === "ARRIVED_AT_PICKUP" || rideStatus?.driver_progress === "ON_THE_WAY_TO_DROPOFF" },
+      { id: "completed", icon: "✅", label: "Completed", active: rideStatus?.status === "completed" },
+    ];
+
+    return (
+      <View style={styles.timelineContainer}>
+        {steps.map((step, index) => (
+          <View key={step.id}>
+            <View style={styles.timelineStep}>
+              <View style={[styles.stepCircle, step.active && styles.stepCircleActive]}>
+                <Text style={[styles.stepIcon, step.active && styles.stepIconActive]}>{step.icon}</Text>
+              </View>
+              <Text style={[styles.stepLabel, step.active && styles.stepLabelActive]}>{step.label}</Text>
+            </View>
+            {index < steps.length - 1 && (
+              <View style={[styles.stepConnector, steps[index + 1].active && styles.stepConnectorActive]} />
+            )}
+          </View>
+        ))}
+      </View>
+    );
   };
 
   const handleCancelRide = () => {
@@ -150,6 +179,8 @@ export default function ActiveRide() {
           Status: {rideStatus.status === "in_progress" ? "In Progress" : rideStatus.status}
         </Text>
       </View>
+
+      {renderTimeline()}
 
       <View style={styles.infoCard}>
         <View style={styles.routeContainer}>
@@ -314,5 +345,52 @@ const styles = StyleSheet.create({
   },
   pressed: {
     opacity: 0.8,
+  },
+  timelineContainer: {
+    marginBottom: 20,
+    paddingHorizontal: 20,
+  },
+  timelineStep: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 10,
+  },
+  stepCircle: {
+    width: 50,
+    height: 50,
+    borderRadius: 25,
+    backgroundColor: "#E0E0E0",
+    justifyContent: "center",
+    alignItems: "center",
+    marginRight: 15,
+  },
+  stepCircleActive: {
+    backgroundColor: "#4CAF50",
+  },
+  stepIcon: {
+    fontSize: 24,
+    opacity: 0.5,
+  },
+  stepIconActive: {
+    opacity: 1,
+  },
+  stepLabel: {
+    fontSize: 14,
+    color: "#999",
+    fontWeight: "500",
+  },
+  stepLabelActive: {
+    color: "#2E7D32",
+    fontWeight: "bold",
+  },
+  stepConnector: {
+    width: 2,
+    height: 20,
+    backgroundColor: "#E0E0E0",
+    marginLeft: 24,
+    marginBottom: 5,
+  },
+  stepConnectorActive: {
+    backgroundColor: "#4CAF50",
   },
 });

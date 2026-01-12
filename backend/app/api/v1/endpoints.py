@@ -6,6 +6,7 @@ from app.core.schemas import (
     FareCalculationResponse,
     RideRequest,
     RideAccept,
+    DriverProgress,
 )
 from app.services.fare_calculator import (
     calculate_fare,
@@ -23,6 +24,7 @@ from app.services.ride_firestore import (
     set_candidate_drivers,
     assign_driver,
     update_status,
+    update_driver_progress,
     find_drivers_for_ride,
     list_requested_rides,
     get_driver_assigned_ride,
@@ -353,6 +355,48 @@ async def cancel_ride(ride_id: str):
         raise HTTPException(status_code=409, detail={"error": e.message, "code": e.code})
     except Exception as e:
         logger.error(f"Error cancelling ride: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Driver progress tracking
+class UpdateDriverProgressRequest(BaseModel):
+    """Request to update driver progress"""
+    driver_id: str
+    progress: DriverProgress
+
+
+@router.post("/{ride_id}/driver-progress")
+async def update_driver_progress_endpoint(ride_id: str, request: UpdateDriverProgressRequest):
+    """
+    Update driver progress milestone.
+    
+    Progress values: NOT_STARTED, ON_THE_WAY_TO_PICKUP, ARRIVED_AT_PICKUP, ON_THE_WAY_TO_DROPOFF
+    
+    Returns:
+    - 404 if ride not found
+    - 409 if invalid state (ride completed/cancelled, driver not assigned, wrong driver)
+    - 500 if backend error
+    """
+    ride = get_ride(ride_id)
+    if not ride:
+        raise HTTPException(status_code=404, detail="Ride not found")
+    
+    try:
+        update_driver_progress(ride_id, request.driver_id, request.progress.value)
+        return {
+            "ride_id": ride_id,
+            "driver_id": request.driver_id,
+            "progress": request.progress.value,
+            "message": f"Driver progress updated to {request.progress.value}"
+        }
+    except RideStateError as e:
+        raise HTTPException(status_code=409, detail={"error": e.message, "code": e.code})
+    except RideConflictError as e:
+        raise HTTPException(status_code=409, detail={"error": e.message, "code": e.code})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        logger.error(f"Error updating driver progress: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
 

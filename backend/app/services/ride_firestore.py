@@ -229,6 +229,70 @@ def update_status(ride_id: str, status: str) -> None:
     db.collection(COLLECTION_RIDES).document(ride_id).update(patch)
 
 
+def update_driver_progress(ride_id: str, driver_id: str, progress: str) -> None:
+    """
+    Update driver progress for a ride with validation.
+    
+    Args:
+        ride_id: The ride to update
+        driver_id: The driver making the update (must be assigned driver)
+        progress: The new progress (NOT_STARTED, ON_THE_WAY_TO_PICKUP, ARRIVED_AT_PICKUP, ON_THE_WAY_TO_DROPOFF)
+        
+    Raises:
+        ValueError: If ride not found
+        RideStateError: If ride is completed/cancelled or driver is not assigned
+        RideConflictError: If driver is not the assigned driver
+    """
+    # Valid progress enum values
+    VALID_PROGRESS = [
+        "NOT_STARTED",
+        "ON_THE_WAY_TO_PICKUP",
+        "ARRIVED_AT_PICKUP",
+        "ON_THE_WAY_TO_DROPOFF",
+    ]
+    
+    if progress not in VALID_PROGRESS:
+        raise ValueError(f"Invalid progress: {progress}. Must be one of {VALID_PROGRESS}")
+    
+    db = get_db()
+    ride_ref = db.collection(COLLECTION_RIDES).document(ride_id)
+    ride_snap = ride_ref.get()
+    
+    if not ride_snap.exists:
+        raise ValueError(f"Ride {ride_id} not found")
+    
+    ride = ride_snap.to_dict()
+    current_status = ride.get("status")
+    assigned_driver_id = ride.get("driver_id")
+    
+    # Check ride is not completed or cancelled
+    if current_status in ["COMPLETED", "CANCELLED"]:
+        raise RideStateError(
+            f"Cannot update progress for {current_status} ride",
+            code="INVALID_STATE"
+        )
+    
+    # Check driver is assigned to this ride
+    if not assigned_driver_id:
+        raise RideStateError(
+            f"No driver assigned to ride {ride_id}",
+            code="INVALID_STATE"
+        )
+    
+    # Check it's the assigned driver making the update
+    if assigned_driver_id != driver_id:
+        raise RideConflictError(
+            f"Driver {driver_id} is not assigned to ride {ride_id}",
+            code="FORBIDDEN"
+        )
+    
+    # Update progress
+    db.collection(COLLECTION_RIDES).document(ride_id).update({
+        "driver_progress": progress,
+        "progress_updated_at": _now_iso(),
+    })
+
+
 def list_drivers_ordered() -> List[Dict[str, Any]]:
     """Get deterministic list of drivers. Prefer drivers collection, else users with role=driver.
     Returns minimal fields plus 'coords' if available.

@@ -22,6 +22,13 @@ class RideStatus(str, Enum):
     CANCELLED = "cancelled"
 
 
+class DriverProgress(str, Enum):
+    NOT_STARTED = "NOT_STARTED"
+    ON_THE_WAY_TO_PICKUP = "ON_THE_WAY_TO_PICKUP"
+    ARRIVED_AT_PICKUP = "ARRIVED_AT_PICKUP"
+    ON_THE_WAY_TO_DROPOFF = "ON_THE_WAY_TO_DROPOFF"
+
+
 class FareCalculationRequest(BaseModel):
     pickup_location: Optional[str] = None
     dropoff_location: Optional[str] = None

@@ -3,9 +3,15 @@
 // Includes offline queue management for ride requests
 
 import {
-    QueuedRideRequest
+    QueuedRideRequest,
+    addToQueue,
+    getPendingRequests,
+    removeFromQueue,
+    incrementRetryCount,
 } from "@/src/utils/asyncStorageQueue";
 import { apiGet, apiPost } from "./apiClient";
+import { isBackendReachable } from "@/src/utils/connectivityHelpers";
+import { showToast, showSuccessToast, showErrorToast } from "@/src/utils/toastHelper";
 
 // Re-export apiClient functions for convenience
 export { apiGet, apiPost };

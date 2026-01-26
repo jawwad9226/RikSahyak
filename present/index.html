@@ -1,0 +1,1408 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>RIKSahyak - Presentation</title>
+    <style>
+        /* --- RESET & BASE STYLES --- */
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+        }
+
+        body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #0f172a; /* Deep dark blue/slate */
+            color: #f8fafc;
+            overflow: hidden; /* Prevent scrolling during presentation */
+            height: 100vh;
+            width: 100vw;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            margin: 0;
+        }
+
+        /* --- SCALER WRAPPER --- */
+        #scaler {
+            width: 1600px; /* Base Design Width */
+            height: 900px; /* Base Design Height */
+            position: relative;
+            transform-origin: center center;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            flex-shrink: 0; 
+        }
+
+        /* --- INDIVIDUAL SLIDES --- */
+        .slide {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            justify-content: center;
+            align-items: center;
+            padding: 2rem;
+            opacity: 0;
+            transition: opacity 0.5s ease-in-out;
+        }
+
+        .slide.active {
+            display: flex;
+            opacity: 1;
+            z-index: 10;
+        }
+
+        /* --- TYPOGRAPHY --- */
+        h1 {
+            font-size: 5rem;
+            font-weight: 700;
+            margin-bottom: 0.5rem;
+            letter-spacing: -0.02em;
+            text-align: center;
+            text-shadow: 0 4px 10px rgba(0,0,0,0.3);
+        }
+
+        h2 {
+            font-size: 3.5rem;
+            font-weight: 600;
+            color: #94a3b8;
+            margin-bottom: 3rem;
+            text-align: center;
+        }
+
+        p {
+            font-size: 1.8rem;
+            color: #cbd5e1;
+            max-width: 1000px;
+            text-align: center;
+            line-height: 1.6;
+        }
+
+        .highlight-red {
+            color: #f87171; /* Red highlight */
+            font-weight: bold;
+            text-shadow: 0 0 20px rgba(248, 113, 113, 0.2);
+        }
+
+        .practice-note {
+            position: absolute;
+            bottom: 30px;
+            font-size: 1.2rem;
+            color: #fbbf24; /* Amber warning color */
+            background: rgba(0,0,0,0.8);
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-family: monospace;
+            opacity: 0.6;
+            z-index: 100;
+            pointer-events: none;
+        }
+
+        /* --- SLIDE 1: INTRO SPECIFIC --- */
+        .profile-section {
+            text-align: center;
+            margin-bottom: 4rem;
+        }
+
+        .name-title {
+            font-size: 5.5rem; 
+            background: linear-gradient(to right, #ffffff, #94a3b8);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .sub-details {
+            font-size: 2.2rem;
+            color: #64748b;
+            margin-top: 1rem;
+        }
+
+        /* Map Container */
+        .map-wrapper {
+            width: 0;
+            height: 0;
+            overflow: hidden;
+            border-radius: 20px;
+            box-shadow: 0 30px 60px -10px rgba(0, 0, 0, 0.6);
+            transition: all 0.8s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            opacity: 0;
+            margin-top: 2rem;
+            border: 4px solid #38bdf8;
+            background: #000; /* Black bg for video */
+        }
+
+        .map-wrapper.show {
+            width: 800px;
+            height: 450px;
+            opacity: 1;
+        }
+
+        .map-placeholder {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .map-placeholder video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .map-placeholder img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+
+        /* --- SLIDE 2: REALITY SPECIFIC --- */
+        .reality-container {
+            display: flex;
+            gap: 3rem;
+            margin-top: 2rem;
+            width: 90%;
+            max-width: 1400px;
+            justify-content: center;
+        }
+
+        .reality-box {
+            flex: 1;
+            background: #1e293b;
+            height: 500px;
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            overflow: hidden;
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.6s ease-out;
+            border: 2px solid #334155;
+            position: relative;
+        }
+
+        .reality-box.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .reality-box img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            filter: brightness(0.8);
+        }
+
+        .reality-label {
+            position: absolute;
+            bottom: 0;
+            width: 100%;
+            background: rgba(0,0,0,0.85);
+            color: white;
+            padding: 1.5rem;
+            text-align: center;
+            font-size: 2rem;
+            font-weight: bold;
+        }
+
+        .punchline {
+            margin-top: 4rem;
+            font-size: 3.5rem;
+            font-weight: 300;
+            color: #cbd5e1;
+            opacity: 0;
+            transform: scale(0.9);
+            transition: all 0.5s ease;
+            text-align: center;
+        }
+
+        .punchline.visible {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        /* --- SLIDE 3: WHY APPS FAIL --- */
+        .failure-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 3rem;
+            width: 90%;
+            max-width: 1200px;
+        }
+
+        .fail-card {
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid #334155;
+            padding: 2.5rem;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            gap: 2rem;
+            opacity: 0;
+            transform: translateX(-30px);
+            transition: all 0.5s ease;
+        }
+
+        .fail-card.visible {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .fail-icon {
+            font-size: 4rem;
+            color: #94a3b8;
+        }
+
+        .fail-text h3 {
+            font-size: 2rem;
+            color: #e2e8f0;
+            margin-bottom: 0.5rem;
+        }
+
+        .fail-text p {
+            font-size: 1.2rem;
+            color: #94a3b8;
+            text-align: left;
+            margin: 0;
+        }
+
+        /* --- SLIDE 4: THE SOLUTION DEFINITION --- */
+        .definition-container {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            align-items: center;
+            margin-top: 1rem;
+        }
+
+        .logo-placeholder {
+            width: 200px;
+            height: 200px;
+            margin-bottom: 0.5rem;
+            opacity: 0;
+            transform: scale(0.5);
+            transition: all 0.6s ease;
+        }
+        
+        .logo-placeholder.visible {
+            opacity: 1;
+            transform: scale(1);
+        }
+        
+        .logo-placeholder img {
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+        }
+        
+        .brand-name {
+            font-size: 3rem;
+            font-weight: 800;
+            color: #e2e8f0;
+            letter-spacing: 3px;
+            margin-bottom: 3rem;
+            opacity: 0;
+            transition: opacity 0.5s ease;
+            text-shadow: 0 0 20px rgba(56, 189, 248, 0.3);
+        }
+        .brand-name.visible { opacity: 1; }
+
+        .not-this {
+            font-size: 4rem;
+            color: #64748b;
+            text-decoration: line-through;
+            opacity: 0.5;
+            transition: all 0.5s ease;
+        }
+        
+        .not-this.dim {
+            opacity: 0.2;
+            transform: scale(0.8);
+        }
+
+        .is-this {
+            font-size: 5rem;
+            font-weight: 800;
+            color: #38bdf8;
+            opacity: 0;
+            transform: scale(1.2);
+            transition: all 0.6s cubic-bezier(0.34, 1.56, 0.64, 1);
+            text-align: center;
+        }
+
+        .is-this.visible {
+            opacity: 1;
+            transform: scale(1);
+        }
+
+        .tagline {
+            font-size: 2rem;
+            color: #cbd5e1;
+            opacity: 0;
+            margin-top: 1.5rem;
+            transition: opacity 1s ease;
+        }
+        
+        .tagline.visible {
+            opacity: 1;
+        }
+
+        /* --- SLIDE 5: SYSTEM OVERVIEW (CARDS) --- */
+        .roles-container {
+            display: flex;
+            justify-content: center;
+            gap: 2.5rem;
+            width: 100%;
+            max-width: 1400px;
+            margin-top: 3rem;
+        }
+
+        .role-card {
+            flex: 1;
+            background: linear-gradient(145deg, #1e293b, #0f172a);
+            border: 1px solid #334155;
+            border-radius: 20px;
+            padding: 3rem 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            text-align: center;
+            opacity: 0;
+            transform: translateY(40px);
+            transition: all 0.6s ease;
+            box-shadow: 0 20px 40px rgba(0,0,0,0.3);
+        }
+
+        .role-card.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .role-icon {
+            font-size: 5rem;
+            color: #38bdf8;
+            margin-bottom: 1.5rem;
+            background: rgba(56, 189, 248, 0.1);
+            width: 120px;
+            height: 120px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            border: 3px solid #38bdf8;
+        }
+
+        .role-title {
+            font-size: 2rem;
+            font-weight: bold;
+            color: #e2e8f0;
+            margin-bottom: 2rem;
+        }
+
+        .role-features {
+            list-style: none;
+            width: 100%;
+        }
+
+        .role-features li {
+            background: rgba(0, 0, 0, 0.2);
+            margin-bottom: 1rem;
+            padding: 1rem;
+            border-radius: 10px;
+            font-size: 1.2rem;
+            color: #94a3b8;
+            border-left: 4px solid #38bdf8;
+            text-align: left;
+            padding-left: 1.2rem;
+        }
+
+        /* --- SLIDE 6: THE DEMO --- */
+        .demo-stage {
+            display: flex;
+            justify-content: space-evenly; /* BETTER SPACING */
+            gap: 2rem;
+            width: 100%;
+            max-width: 1550px; /* Use more width */
+            height: 700px;
+            margin-top: 1rem;
+            align-items: center;
+            position: relative;
+        }
+
+        .device {
+            background: #0f172a;
+            border: 2px solid #334155;
+            border-radius: 24px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+            transition: all 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            box-shadow: 0 15px 40px rgba(0,0,0,0.5);
+            position: relative;
+            flex-shrink: 0; /* Ensure devices don't shrink inside flex */
+        }
+
+        .phone {
+            width: 340px;
+            height: 650px;
+            border-width: 10px;
+            z-index: 1;
+        }
+
+        .laptop {
+            width: 750px;
+            height: 500px;
+            border-width: 14px 14px 28px 14px;
+            z-index: 1;
+        }
+
+        .device.active-focus {
+            border-color: #38bdf8;
+            transform: scale(1.05);
+            box-shadow: 0 25px 60px rgba(56, 189, 248, 0.25);
+            z-index: 20;
+            background-color: #1e293b;
+        }
+
+        .screen-header {
+            background: #1e293b;
+            padding: 15px;
+            font-size: 1rem;
+            text-align: center;
+            color: #94a3b8;
+            border-bottom: 1px solid #334155;
+            font-weight: bold;
+        }
+
+        .screen-body {
+            flex: 1;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            background: #020617;
+            position: relative;
+            width: 100%;
+        }
+
+        .ui-btn {
+            background: #38bdf8;
+            color: #0f172a;
+            padding: 15px 30px;
+            border-radius: 10px;
+            font-weight: bold;
+            margin-top: 20px;
+            opacity: 0.5;
+            cursor: pointer;
+            text-align: center;
+            transition: all 0.3s;
+            font-size: 1.2rem;
+            width: 80%;
+            border: none;
+        }
+        
+        .ui-btn.active {
+            opacity: 1;
+            box-shadow: 0 0 20px rgba(56, 189, 248, 0.5);
+        }
+        
+        .ui-btn-secondary {
+            background: #0ea5e9;
+            color: white;
+            padding: 15px 25px;
+            border-radius: 10px;
+            font-weight: bold;
+            margin-top: 15px;
+            text-align: center;
+            font-size: 1.1rem;
+            opacity: 0;
+            transform: translateY(10px);
+            transition: all 0.3s;
+            display: none;
+            width: 90%;
+            border: 2px solid #0284c7;
+        }
+        .ui-btn-secondary.visible {
+            opacity: 1;
+            transform: translateY(0);
+            display: block;
+        }
+        
+        /* New Call Interface Styles */
+        .call-interface {
+            display: none; /* Hidden by default */
+            flex-direction: column;
+            align-items: center;
+            justify-content: space-between;
+            height: 100%;
+            width: 100%;
+            padding-top: 2rem;
+        }
+        
+        .call-interface.active {
+            display: flex;
+        }
+
+        .caller-avatar {
+            width: 100px;
+            height: 100px;
+            background: #334155;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3rem;
+            color: #cbd5e1;
+            margin-bottom: 1rem;
+            border: 3px solid #38bdf8;
+        }
+
+        .caller-name {
+            font-size: 1.8rem;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 0.5rem;
+        }
+
+        .call-timer {
+            font-size: 1.2rem;
+            color: #94a3b8;
+            margin-bottom: 2rem;
+        }
+
+        .call-actions {
+            display: flex;
+            gap: 1.5rem;
+            margin-bottom: 2rem;
+        }
+
+        .action-icon {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            background: rgba(255,255,255,0.1);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            color: #fff;
+        }
+
+        .end-call-btn {
+            width: 70px;
+            height: 70px;
+            border-radius: 50%;
+            background: #ef4444;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 2rem;
+            color: white;
+            box-shadow: 0 5px 15px rgba(239, 68, 68, 0.4);
+            margin-bottom: 2rem;
+        }
+        
+        /* Formatted Chat */
+        .transcript-box {
+            font-family: 'Segoe UI', sans-serif;
+            font-size: 1.1rem;
+            color: #e2e8f0;
+            text-align: left;
+            width: 95%;
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            height: 300px;
+            overflow-y: auto;
+            margin-bottom: 20px;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .chat-bubble {
+            padding: 10px 16px;
+            border-radius: 16px;
+            max-width: 85%;
+            opacity: 0;
+            font-size: 1rem;
+            line-height: 1.4;
+            /* Typing animation initial state */
+            display: none; 
+        }
+        
+        .chat-bubble.visible {
+            display: block;
+            opacity: 1;
+            animation: fadeIn 0.3s ease-out;
+        }
+        
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .chat-left {
+            background: #334155;
+            align-self: flex-start;
+            border-bottom-left-radius: 2px;
+            color: #f1f5f9;
+        }
+        
+        .chat-right {
+            background: #0369a1;
+            align-self: flex-end;
+            border-bottom-right-radius: 2px;
+            color: white;
+        }
+        
+        .chat-system {
+            align-self: center;
+            font-size: 0.9rem;
+            color: #94a3b8;
+            font-style: italic;
+            margin: 5px 0;
+        }
+
+        .sms-popup {
+            background: #f1f5f9;
+            color: #0f172a;
+            padding: 20px;
+            border-radius: 12px;
+            position: absolute;
+            top: 15%;
+            left: 5%;
+            right: 5%;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.6);
+            opacity: 0;
+            transform: translateY(-20px);
+            transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+            font-size: 1.1rem;
+            border-left: 6px solid #38bdf8;
+            z-index: 50;
+            white-space: pre-line;
+            line-height: 1.4;
+            text-align: left;
+        }
+        .sms-popup.visible { opacity: 1; transform: translateY(0); }
+        .sms-header { font-weight: bold; margin-bottom: 10px; color: #0284c7; font-size: 1.2rem; border-bottom: 1px solid #cbd5e1; padding-bottom: 5px; display: block;}
+        
+        .sms-call-btn {
+            background: #22c55e;
+            color: white;
+            padding: 8px 15px;
+            border-radius: 6px;
+            text-align: center;
+            margin-top: 10px;
+            font-weight: bold;
+            display: inline-block;
+            box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+            font-size: 0.9rem;
+        }
+
+        #demo-driver { opacity: 0; transform: translateX(50px); }
+        #demo-driver.visible { opacity: 1; transform: translateX(0); }
+
+        /* --- SLIDE 7: USP (RESTORED) --- */
+        .usp-list {
+            display: flex;
+            flex-direction: column;
+            gap: 2rem;
+            width: 80%;
+            max-width: 900px;
+        }
+
+        .usp-item {
+            background: rgba(30, 41, 59, 0.8);
+            padding: 2rem;
+            border-radius: 12px;
+            border-left: 6px solid #38bdf8;
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            opacity: 0;
+            transform: translateX(30px);
+            transition: all 0.4s ease;
+        }
+
+        .usp-item.visible {
+            opacity: 1;
+            transform: translateX(0);
+        }
+
+        .usp-check {
+            color: #4ade80; /* Green check */
+            font-size: 2rem;
+        }
+        
+        .usp-text {
+            font-size: 1.4rem;
+            color: #f1f5f9;
+        }
+
+        /* --- SLIDES 8 & 9: SPLIT VISION --- */
+        .vision-grid {
+            display: grid;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 3rem;
+            width: 90%;
+            max-width: 1200px;
+            margin-top: 2rem;
+        }
+
+        .vision-item {
+            background: rgba(30, 41, 59, 0.6);
+            border: 1px solid #334155;
+            padding: 2.5rem;
+            border-radius: 16px;
+            display: flex;
+            align-items: center;
+            gap: 1.5rem;
+            opacity: 0;
+            transform: scale(0.9);
+            transition: all 0.5s ease;
+        }
+        .vision-item.visible { opacity: 1; transform: scale(1); }
+
+        .vision-icon { font-size: 3.5rem; color: #38bdf8; }
+        .vision-text { font-size: 1.5rem; color: #e2e8f0; font-weight: 500; }
+
+        .impact-container {
+            display: flex;
+            flex-wrap: wrap;
+            justify-content: center;
+            gap: 3rem;
+            max-width: 1300px;
+            margin-top: 2rem;
+        }
+        
+        .impact-card {
+            background: linear-gradient(180deg, #1e293b 0%, #0f172a 100%);
+            border: 1px solid #475569;
+            padding: 2rem;
+            border-radius: 16px;
+            width: 350px;
+            text-align: center;
+            opacity: 0;
+            transform: translateY(30px);
+            transition: all 0.5s ease;
+        }
+        .impact-card.visible { opacity: 1; transform: translateY(0); }
+        .impact-title { color: #38bdf8; font-size: 1.6rem; margin-bottom: 1rem; font-weight: bold; }
+        .impact-desc { color: #94a3b8; font-size: 1.2rem; }
+
+        /* --- SLIDE 10: CLOSING --- */
+        .final-quote {
+            font-size: 4rem;
+            font-weight: 300;
+            font-style: italic;
+            text-align: center;
+            max-width: 1000px;
+            opacity: 0;
+            transition: opacity 1s ease;
+        }
+        .final-quote.visible { opacity: 1; }
+
+        .nav-hint { position: fixed; bottom: 20px; right: 20px; font-size: 1rem; color: #475569; z-index: 1000; }
+
+    </style>
+</head>
+<body>
+
+<!-- SCALER WRAPPER: SCALES TO FIT ANY SCREEN -->
+<div id="scaler">
+
+    <!-- SLIDE 1: INTRO -->
+    <div class="slide active" id="slide-1" data-step="0">
+        <div class="profile-section">
+            <h1 class="name-title">Shaikh Jawwad Ahmad</h1>
+            <p class="sub-details">CSE Student</p>
+            <p class="sub-details" style="color: #cbd5e1; margin-top: 1rem;">Padm. Dr. V. B. Kolte COE | Malkapur, Maharashtra</p>
+        </div>
+        <div class="map-wrapper" id="intro-map">
+            <div class="map-placeholder">
+                <video id="intro-video" src="intro_video.mp4" muted playsinline style="width: 100%; height: 100%; object-fit: cover;"></video>
+            </div>
+        </div>
+        <div class="practice-note">(Space -> Show Map | Space Again -> Next Slide)</div>
+    </div>
+
+    <!-- SLIDE 2: THE REALITY -->
+    <div class="slide" id="slide-2" data-step="0">
+        <h2>The Reality of Malkapur</h2>
+        <div class="reality-container">
+            <div class="reality-box" id="reality-1">
+                <img src="drivers_waiting.jpg" alt="Drivers Waiting" onerror="this.src='https://placehold.co/600x600/1e293b/FFF?text=Drivers+Waiting'">
+                <div class="reality-label">The Supply (Waiting)</div>
+            </div>
+            <div class="reality-box" id="reality-2">
+                <img src="passengers_stranded.jpg" alt="Passengers Stranded" onerror="this.src='https://placehold.co/600x600/1e293b/FFF?text=Passengers+Stranded'">
+                <div class="reality-label">The Demand (Searching)</div>
+            </div>
+        </div>
+        <div class="punchline" id="reality-text">
+            "There is <span class="highlight-red">no connection between them</span>."
+        </div>
+        <div class="practice-note">(Space -> 1.Drivers, 2.Passengers, 3.Punchline -> Next)</div>
+    </div>
+
+    <!-- SLIDE 3: WHY OTHERS FAIL -->
+    <div class="slide" id="slide-3" data-step="0">
+        <h2>Why "Big Tech" Fails Here</h2>
+        <div class="failure-grid">
+            <div class="fail-card" id="fail-1">
+                <div class="fail-icon">📶</div>
+                <div class="fail-text">
+                    <h3>Internet Zones</h3>
+                    <p>Poor connectivity makes real-time maps impossible.</p>
+                </div>
+            </div>
+            <div class="fail-card" id="fail-2">
+                <div class="fail-icon">📱</div>
+                <div class="fail-text">
+                    <h3>Tech Barrier</h3>
+                    <p>Elders cannot navigate complex booking UIs.</p>
+                </div>
+            </div>
+            <div class="fail-card" id="fail-3">
+                <div class="fail-icon">🚕</div>
+                <div class="fail-text">
+                    <h3>Driver Trust</h3>
+                    <p>Drivers fear algorithms and hidden commissions.</p>
+                </div>
+            </div>
+            <div class="fail-card" id="fail-4">
+                <div class="fail-icon">🧩</div>
+                <div class="fail-text">
+                    <h3>Coordination</h3>
+                    <p>It's about knowing <em>who</em>, not just <em>where</em>.</p>
+                </div>
+            </div>
+        </div>
+        <div class="practice-note">(Space -> Reveal points -> Next)</div>
+    </div>
+
+    <!-- SLIDE 4: THE PIVOT (DEFINITION) -->
+    <div class="slide" id="slide-4" data-step="0">
+        <h2>Introducing</h2>
+        <div class="definition-container">
+            <div class="logo-placeholder" id="logo-place">
+                <img src="riksahyak_logo.svg" alt="RIKSahyak Logo" onerror="this.src='https://placehold.co/200x200/38bdf8/000?text=LOGO'">
+            </div>
+            <div class="brand-name" id="logo-text">RIKSahyak</div>
+
+            <div class="not-this" id="def-1">Cab Servicing App</div>
+            <div class="is-this" id="def-2">Digital Taxi Exchange</div>
+            <div class="tagline" id="def-3">A Community Coordination Service</div>
+        </div>
+        <div class="practice-note">(Space -> Logo, Name, Cross Out, Stand, Tagline)</div>
+    </div>
+
+    <!-- SLIDE 5: SYSTEM OVERVIEW -->
+    <div class="slide" id="slide-5" data-step="0">
+        <h2>System Roles</h2>
+        <div class="roles-container">
+            <div class="role-card" id="role-1">
+                <div class="role-icon">👤</div>
+                <div class="role-title">Passenger</div>
+                <ul class="role-features">
+                    <li>App or Phone Call</li>
+                    <li>Minimal Actions</li>
+                    <li>No Internet Needed</li>
+                </ul>
+            </div>
+            <div class="role-card" id="role-2">
+                <div class="role-icon">🖥️</div>
+                <div class="role-title">Admin / Operator</div>
+                <ul class="role-features">
+                    <li>Monitor Requests</li>
+                    <li>Manual Control</li>
+                    <li>Override System</li>
+                </ul>
+            </div>
+            <div class="role-card" id="role-3">
+                <div class="role-icon">🛺</div>
+                <div class="role-title">Driver</div>
+                <ul class="role-features">
+                    <li>Accept Ride</li>
+                    <li>Update Progress</li>
+                    <li>Simple Interface</li>
+                </ul>
+            </div>
+        </div>
+        <div class="practice-note">(Space -> Reveal cards -> Next)</div>
+    </div>
+
+    <!-- SLIDE 6: THE LIVE DEMO (REBUILT) -->
+    <div class="slide" id="slide-6" data-step="0">
+        <h2>Simulated Live Booking</h2>
+        <div class="demo-stage">
+            <!-- Passenger Phone -->
+            <div class="device phone" id="demo-passenger">
+                <div class="screen-header">Passenger Phone</div>
+                <div class="screen-body" style="justify-content: flex-start;">
+                    <!-- Initial Idle Screen -->
+                    <div id="pass-idle-ui" style="text-align: center; width: 100%; margin-top: 50%;">
+                        <div class="ui-icon" id="pass-icon" style="font-size: 3rem; margin-bottom: 1rem;">📞</div>
+                        <div class="ui-text" id="pass-text" style="font-size: 1.5rem;">Idle</div>
+                        <div class="ui-btn" id="pass-btn">Call Service</div>
+                    </div>
+
+                    <!-- ACTIVE CALL UI (Hidden Initially) -->
+                    <div id="pass-call-ui" class="call-interface">
+                        <div class="caller-avatar">👤</div>
+                        <div class="caller-name">RIKSahyak</div>
+                        <div class="call-timer">00:05</div>
+                        
+                        <div class="call-actions">
+                            <div class="action-icon">🎤</div>
+                            <div class="action-icon">⌨️</div>
+                            <div class="action-icon">🔊</div>
+                        </div>
+
+                        <div class="end-call-btn">📞</div>
+                    </div>
+                    
+                    <!-- SMS POPUP -->
+                    <div class="sms-popup" id="pass-sms">
+                        <span class="sms-header">RIKSahyak Alert</span>
+                        <div style="margin-bottom: 8px;">Your ride from <strong>Pilutakiya</strong> to <strong>Bus Stop</strong> accepted.</div>
+                        <div style="margin-bottom: 8px;">Driver: <strong>Raju</strong><br>Number: 9890...</div>
+                        <div class="sms-call-btn">📞 Call Driver</div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Operator Laptop -->
+            <div class="device laptop" id="demo-operator">
+                <div class="screen-header">Operator Dashboard</div>
+                <div class="screen-body" style="justify-content: flex-start; padding-top: 1rem;">
+                    <div class="ui-text" id="op-status" style="font-size: 1.2rem; color: #94a3b8; margin-bottom: 10px;">System Ready</div>
+                    
+                    <!-- Chat Interface -->
+                    <div class="transcript-box" id="transcript-container">
+                        <!-- Data-text attributes store the content to be typed -->
+                        <div class="chat-system chat-bubble" id="line-1" data-text="Incoming call..."></div>
+                        <div class="chat-right chat-bubble" id="line-2" data-text="Welcome to RIKSahyak! Please tell me your Good name?"></div>
+                        <div class="chat-left chat-bubble" id="line-3" data-text="Jawwad."></div>
+                        <div class="chat-right chat-bubble" id="line-4" data-text="Tell me the location and Destination?"></div>
+                        <div class="chat-left chat-bubble" id="line-5" data-text="Pilutakiya se Bus stop jana hai..."></div>
+                        <div class="chat-right chat-bubble" id="line-6" data-text="Thank you. We will send you confirmation SMS soon..."></div>
+                        <div class="chat-system chat-bubble" id="line-7" data-text=">> Processing Ticket..."></div>
+                    </div>
+
+                    <div class="ui-btn" id="op-btn" style="margin-top: auto; margin-bottom: 10px; width: 60%;">Create Ticket</div>
+                </div>
+            </div>
+
+            <!-- Driver Phone -->
+            <div class="device phone" id="demo-driver">
+                <div class="screen-header">Driver App</div>
+                <div class="screen-body">
+                    <div class="ui-icon">🛺</div>
+                    <div class="ui-text" id="driver-text" style="color: #fbbf24; font-size: 1.5rem; margin-bottom: 1rem;">New Request!</div>
+                    <div style="background: #1e293b; padding: 20px; border-radius: 12px; width: 95%; font-size: 1.1rem; margin-bottom: 20px; color: #e2e8f0; text-align: left; line-height: 1.5;">
+                        <div><strong>Pickup:</strong> Pilutakiya</div>
+                        <div><strong>Drop:</strong> Bus Stop</div>
+                        <div><strong>Name:</strong> Jawwad</div>
+                    </div>
+                    <div class="ui-btn" id="driver-btn" style="background: #fbbf24; color: #000; opacity: 1;">Accept Ride</div>
+                    <div class="ui-btn-secondary" id="driver-call-btn">📞 Call Passenger</div>
+                    <div class="ui-btn-secondary" id="driver-nav-btn" style="background: #38bdf8;">🗺️ Navigate to Location</div>
+                </div>
+            </div>
+        </div>
+        <div class="practice-note">Space: Call -> Chat -> Ticket -> Alert -> Accept -> Extras -> SMS</div>
+    </div>
+
+    <!-- SLIDE 7: USP -->
+    <div class="slide" id="slide-7" data-step="0">
+        <h2>Why RIKSahyak Wins</h2>
+        <div class="usp-list">
+            <div class="usp-item" id="usp-1">
+                <div class="usp-check">✔</div>
+                <div class="usp-text"><strong>No Internet Required</strong> for Passengers (Call Support)</div>
+            </div>
+            <div class="usp-item" id="usp-2">
+                <div class="usp-check">✔</div>
+                <div class="usp-text"><strong>Zero Tech Barrier</strong> for Elderly</div>
+            </div>
+            <div class="usp-item" id="usp-3">
+                <div class="usp-check">✔</div>
+                <div class="usp-text"><strong>Trust Based</strong> - Human Operator Verification</div>
+            </div>
+            <div class="usp-item" id="usp-4">
+                <div class="usp-check">✔</div>
+                <div class="usp-text"><strong>Low Data Mode</strong> for Drivers</div>
+            </div>
+        </div>
+        <div class="practice-note">(Space -> Show USP -> Next)</div>
+    </div>
+
+    <!-- SLIDE 8: FUTURE VISION -->
+    <div class="slide" id="slide-8" data-step="0">
+        <h2>Future Vision</h2>
+        <div class="vision-grid">
+            <div class="vision-item" id="vis-1">
+                <div class="vision-icon">🗣️</div>
+                <div class="vision-text">Multiple Language Support</div>
+            </div>
+            <div class="vision-item" id="vis-2">
+                <div class="vision-icon">📉</div>
+                <div class="vision-text">Low-Cost Operation</div>
+            </div>
+            <div class="vision-item" id="vis-3">
+                <div class="vision-icon">📍</div>
+                <div class="vision-text">AI Area Recognition</div>
+            </div>
+            <div class="vision-item" id="vis-4">
+                <div class="vision-icon">🏘️</div>
+                <div class="vision-text">Precise Local Mapping</div>
+            </div>
+        </div>
+        <div class="practice-note">(Space -> Reveal Vision Points -> Next)</div>
+    </div>
+
+    <!-- SLIDE 9: IMPACT & SUSTAINABILITY -->
+    <div class="slide" id="slide-9" data-step="0">
+        <h2>Impact & Sustainability</h2>
+        <div class="impact-container">
+            <div class="impact-card" id="imp-1">
+                <div class="impact-title">Economic</div>
+                <div class="impact-desc">Minimal Commission & Local Ads</div>
+            </div>
+            <div class="impact-card" id="imp-2">
+                <div class="impact-title">Partnership</div>
+                <div class="impact-desc">Nagar Palika / Local Gov Bodies</div>
+            </div>
+            <div class="impact-card" id="imp-3">
+                <div class="impact-title">Social</div>
+                <div class="impact-desc">Local Employment & Low Costs</div>
+            </div>
+        </div>
+        <div class="practice-note">(Space -> Reveal Impact Cards -> Next)</div>
+    </div>
+
+    <!-- SLIDE 10: CLOSING -->
+    <div class="slide" id="slide-10" data-step="0">
+        <div style="text-align: center;">
+            <h1 style="color: #38bdf8;">RIKSahyak</h1>
+            <div class="final-quote" id="final-text">
+                "Connecting the disconnected."
+            </div>
+            <p style="margin-top: 4rem; opacity: 0.6; font-size: 1.5rem;">Thank you.</p>
+        </div>
+    </div>
+
+</div>
+
+<div class="nav-hint">
+    Use Arrows / Space | 'R' to Restart | 'F' for Fullscreen
+</div>
+
+<script>
+    // --- PRESENTATION LOGIC & SCALING ---
+    let currentSlideIndex = 0;
+    const slides = document.querySelectorAll('.slide');
+    const totalSlides = slides.length;
+    let isAnimating = false; // Guard to prevent rapid clicking bugs
+
+    // SCALING LOGIC
+    function resizeContent() {
+        const scaler = document.getElementById('scaler');
+        const winW = window.innerWidth;
+        const winH = window.innerHeight;
+        const baseW = 1600;
+        const baseH = 900;
+        
+        // Calculate scale factor to fit
+        const scale = Math.min(winW / baseW, winH / baseH);
+        
+        scaler.style.transform = `scale(${scale})`;
+    }
+    
+    window.addEventListener('resize', resizeContent);
+    window.addEventListener('load', resizeContent);
+
+    // NAVIGATION
+    function showSlide(index) {
+        if (index < 0 || index >= totalSlides) return;
+        currentSlideIndex = index;
+        slides.forEach((slide, i) => {
+            slide.classList.remove('active');
+            if (i === index) {
+                slide.classList.add('active');
+            }
+        });
+    }
+    
+    function nextSlide() {
+        if (currentSlideIndex < totalSlides - 1) {
+            showSlide(currentSlideIndex + 1);
+        }
+    }
+
+    // TYPEWRITER FUNCTION
+    function typeText(element, container, speed = 25) {
+        return new Promise(resolve => {
+            // Get text from attribute to avoid losing it on re-runs
+            const text = element.getAttribute('data-text'); 
+            element.textContent = ''; // Clear content using textContent
+            element.classList.add('visible'); // Show bubble
+            
+            let i = 0;
+            function type() {
+                if (i < text.length) {
+                    element.textContent += text.charAt(i);
+                    i++;
+                    // Smooth scroll to bottom on every character
+                    container.scrollTop = container.scrollHeight;
+                    setTimeout(type, speed);
+                } else {
+                    resolve();
+                }
+            }
+            type();
+        });
+    }
+
+    // SLIDE 6 LOGIC WRAPPED FOR SAFETY
+    async function runSlide6Sequence(step, activeSlide) {
+        const lines = [
+            document.getElementById('line-2'),
+            document.getElementById('line-3'),
+            document.getElementById('line-4'),
+            document.getElementById('line-5'),
+            document.getElementById('line-6'),
+            document.getElementById('line-7')
+        ];
+        const container = document.getElementById('transcript-container');
+
+        if (step === 1) {
+            // THE CHAT SEQUENCE (TYPEWRITER MODE)
+            isAnimating = true;
+            
+            // Loop through lines one by one using await
+            for (let i = 0; i < lines.length; i++) {
+                await typeText(lines[i], container);
+                // Small pause between messages for realism
+                await new Promise(r => setTimeout(r, 400));
+            }
+            
+            isAnimating = false;
+            activeSlide.setAttribute('data-step', 2); // Ready for next step
+            return; 
+        }
+        
+        // For other steps in Slide 6
+        const devPass = document.getElementById('demo-passenger');
+        const devOp = document.getElementById('demo-operator');
+        const devDrv = document.getElementById('demo-driver');
+        const opStatus = document.getElementById('op-status');
+
+        if (step === 0) {
+             // Step 1: START CALL
+             devPass.classList.add('active-focus');
+             
+             // Hide Idle UI, Show Call UI
+             document.getElementById('pass-idle-ui').style.display = 'none';
+             document.getElementById('pass-call-ui').classList.add('active');
+             
+             devOp.classList.add('active-focus');
+             opStatus.innerText = "Connected";
+             opStatus.style.color = "#4ade80";
+             
+             // Show first system message immediately
+             const line1 = document.getElementById('line-1');
+             line1.textContent = line1.getAttribute('data-text');
+             line1.classList.add('visible');
+             
+             activeSlide.setAttribute('data-step', 1);
+        }
+        else if (step === 2) {
+            // Ticket
+            document.getElementById('op-btn').classList.add('active');
+            document.getElementById('op-btn').innerText = "Ticket #105 Created";
+            opStatus.innerText = "Searching Drivers...";
+            opStatus.style.color = "#fbbf24";
+            activeSlide.setAttribute('data-step', 3);
+        }
+        else if (step === 3) {
+            // Alert
+            devOp.classList.remove('active-focus');
+            devPass.classList.remove('active-focus');
+            devDrv.classList.add('visible');
+            devDrv.classList.add('active-focus');
+            activeSlide.setAttribute('data-step', 4);
+        }
+        else if (step === 4) {
+            // Accept
+            document.getElementById('driver-btn').innerText = "ACCEPTED";
+            document.getElementById('driver-btn').style.background = "#4ade80";
+            document.getElementById('driver-text').innerText = "En Route";
+            document.getElementById('driver-text').style.color = "#4ade80";
+            document.getElementById('driver-call-btn').classList.add('visible');
+            setTimeout(() => {
+                 document.getElementById('driver-nav-btn').classList.add('visible');
+            }, 300);
+            activeSlide.setAttribute('data-step', 5);
+        }
+        else if (step === 5) {
+            // SMS
+            devDrv.classList.remove('active-focus');
+            devPass.classList.add('active-focus');
+            
+            // Hide Call UI, Show SMS
+            document.getElementById('pass-call-ui').classList.remove('active');
+            document.getElementById('pass-sms').classList.add('visible');
+            
+            // Reset to idle bg if needed (optional)
+            document.getElementById('pass-idle-ui').style.display = 'block';
+            document.getElementById('pass-btn').style.display = 'none'; // Keep button hidden
+            document.getElementById('pass-text').innerText = "Call Ended";
+
+            activeSlide.setAttribute('data-step', 6);
+        }
+        else if (step === 6) { nextSlide(); }
+    }
+
+    // MASTER TRIGGER
+    function triggerStep() {
+        if (isAnimating) return; // Prevent breaking animations
+
+        const activeSlide = slides[currentSlideIndex];
+        let step = parseInt(activeSlide.getAttribute('data-step'));
+        const slideId = activeSlide.id;
+        
+        // SLIDE 6 HANDLER
+        if (slideId === 'slide-6') {
+            runSlide6Sequence(step, activeSlide);
+            return;
+        }
+
+        // SLIDE 1
+        if (slideId === 'slide-1') {
+            if (step === 0) { 
+                document.getElementById('intro-map').classList.add('show'); 
+                // PLAY VIDEO
+                const vid = document.getElementById('intro-video');
+                vid.currentTime = 0;
+                vid.play().catch(e => console.log("Video play failed:", e));
+                
+                activeSlide.setAttribute('data-step', 1); 
+            }
+            else if (step === 1) { nextSlide(); }
+        }
+
+        // SLIDE 2
+        else if (slideId === 'slide-2') {
+            if (step === 0) { document.getElementById('reality-1').classList.add('visible'); activeSlide.setAttribute('data-step', 1); }
+            else if (step === 1) { document.getElementById('reality-2').classList.add('visible'); activeSlide.setAttribute('data-step', 2); }
+            else if (step === 2) { document.getElementById('reality-text').classList.add('visible'); activeSlide.setAttribute('data-step', 3); }
+            else if (step === 3) { nextSlide(); }
+        }
+
+        // SLIDE 3
+        else if (slideId === 'slide-3') {
+            if (step === 0) { document.getElementById('fail-1').classList.add('visible'); activeSlide.setAttribute('data-step', 1); }
+            else if (step === 1) { document.getElementById('fail-2').classList.add('visible'); activeSlide.setAttribute('data-step', 2); }
+            else if (step === 2) { document.getElementById('fail-3').classList.add('visible'); activeSlide.setAttribute('data-step', 3); }
+            else if (step === 3) { document.getElementById('fail-4').classList.add('visible'); activeSlide.setAttribute('data-step', 4); }
+            else if (step === 4) { nextSlide(); }
+        }
+
+        // SLIDE 4
+        else if (slideId === 'slide-4') {
+            if (step === 0) {
+                document.getElementById('logo-place').classList.add('visible');
+                document.getElementById('logo-text').classList.add('visible');
+                activeSlide.setAttribute('data-step', 1);
+            }
+            else if (step === 1) {
+                document.getElementById('def-1').style.textDecoration = 'line-through';
+                document.getElementById('def-1').classList.add('dim'); 
+                document.getElementById('def-2').classList.add('visible');
+                activeSlide.setAttribute('data-step', 2);
+            } else if (step === 2) {
+                document.getElementById('def-3').classList.add('visible');
+                activeSlide.setAttribute('data-step', 3);
+            }
+            else if (step === 3) { nextSlide(); }
+        }
+
+        // SLIDE 5
+        else if (slideId === 'slide-5') {
+            if (step === 0) { document.getElementById('role-1').classList.add('visible'); activeSlide.setAttribute('data-step', 1); }
+            else if (step === 1) { document.getElementById('role-2').classList.add('visible'); activeSlide.setAttribute('data-step', 2); }
+            else if (step === 2) { document.getElementById('role-3').classList.add('visible'); activeSlide.setAttribute('data-step', 3); }
+            else if (step === 3) { nextSlide(); }
+        }
+
+        // SLIDE 7
+        else if (slideId === 'slide-7') {
+            if (step === 0) { document.getElementById('usp-1').classList.add('visible'); activeSlide.setAttribute('data-step', 1); }
+            else if (step === 1) { document.getElementById('usp-2').classList.add('visible'); activeSlide.setAttribute('data-step', 2); }
+            else if (step === 2) { document.getElementById('usp-3').classList.add('visible'); activeSlide.setAttribute('data-step', 3); }
+            else if (step === 3) { document.getElementById('usp-4').classList.add('visible'); activeSlide.setAttribute('data-step', 4); }
+            else if (step === 4) { nextSlide(); }
+        }
+
+        // SLIDE 8
+        else if (slideId === 'slide-8') {
+            if (step === 0) { document.getElementById('vis-1').classList.add('visible'); activeSlide.setAttribute('data-step', 1); }
+            else if (step === 1) { document.getElementById('vis-2').classList.add('visible'); activeSlide.setAttribute('data-step', 2); }
+            else if (step === 2) { document.getElementById('vis-3').classList.add('visible'); activeSlide.setAttribute('data-step', 3); }
+            else if (step === 3) { document.getElementById('vis-4').classList.add('visible'); activeSlide.setAttribute('data-step', 4); }
+            else if (step === 4) { nextSlide(); }
+        }
+
+        // SLIDE 9
+        else if (slideId === 'slide-9') {
+            if (step === 0) { document.getElementById('imp-1').classList.add('visible'); activeSlide.setAttribute('data-step', 1); }
+            else if (step === 1) { document.getElementById('imp-2').classList.add('visible'); activeSlide.setAttribute('data-step', 2); }
+            else if (step === 2) { document.getElementById('imp-3').classList.add('visible'); activeSlide.setAttribute('data-step', 3); }
+            else if (step === 3) { nextSlide(); }
+        }
+
+        // SLIDE 10
+        else if (slideId === 'slide-10') {
+            if (step === 0) { document.getElementById('final-text').classList.add('visible'); activeSlide.setAttribute('data-step', 1); }
+        }
+    }
+
+    // CONTROLS
+    document.addEventListener('keydown', (e) => {
+        if (e.code === 'ArrowRight') nextSlide();
+        else if (e.code === 'ArrowLeft') showSlide(currentSlideIndex - 1);
+        else if (e.code === 'Space' || e.code === 'Enter') triggerStep();
+        else if (e.code === 'KeyR') location.reload(); // Restart
+        else if (e.code === 'KeyF') { // Fullscreen
+            if (!document.fullscreenElement) {
+                document.documentElement.requestFullscreen().catch(err => {
+                    console.warn("Fullscreen denied:", err);
+                });
+            }
+            else if (document.exitFullscreen) {
+                document.exitFullscreen().catch(err => {
+                    console.warn("Exit fullscreen denied:", err);
+                });
+            }
+        }
+    });
+
+    document.addEventListener('click', triggerStep);
+
+</script>
+
+</body>
+</html>

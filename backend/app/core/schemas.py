@@ -60,6 +60,18 @@ class RideAccept(BaseModel):
     driver_id: str
 
 
+class StartRideRequest(BaseModel):
+    otp: str
+
+
+class RideFeedbackRequest(BaseModel):
+    ride_id: str
+    passenger_id: str
+    rating: int  # 1-5 stars
+    feedback_text: str = ""
+    issues: list[str] = []  # ["asked_more_money", "rude_behavior", "unsafe_driving", etc.]
+
+
 class DriverProfile(BaseModel):
     driver_id: str
     name: str

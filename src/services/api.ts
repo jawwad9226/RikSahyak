@@ -6,12 +6,12 @@ import {
     QueuedRideRequest,
     addToQueue,
     getPendingRequests,
-    removeFromQueue,
     incrementRetryCount,
+    removeFromQueue,
 } from "@/src/utils/asyncStorageQueue";
-import { apiGet, apiPost } from "./apiClient";
 import { isBackendReachable } from "@/src/utils/connectivityHelpers";
-import { showToast, showSuccessToast, showErrorToast } from "@/src/utils/toastHelper";
+import { showErrorToast, showSuccessToast, showToast } from "@/src/utils/toastHelper";
+import { apiGet, apiPost } from "./apiClient";
 
 // Re-export apiClient functions for convenience
 export { apiGet, apiPost };
@@ -210,8 +210,8 @@ export async function getPassengerCurrentRide(passengerId: string) {
 /**
  * Start a ride (IN_PROGRESS)
  */
-export async function startRide(rideId: string, driverId?: string) {
-  return apiPost(`/rides/${rideId}/start`, { driver_id: driverId });
+export async function startRide(rideId: string, driverId?: string, otp?: string) {
+  return apiPost(`/rides/${rideId}/start`, { driver_id: driverId, otp });
 }
 
 /**
@@ -235,6 +235,25 @@ export async function updateDriverProgress(rideId: string, driverId: string, pro
   return apiPost(`/rides/${rideId}/driver-progress`, {
     driver_id: driverId,
     progress: progress,
+  });
+}
+
+/**
+ * Submit feedback for a completed ride
+ */
+export async function submitRideFeedback(
+  rideId: string,
+  passengerId: string,
+  rating: number,
+  feedbackText: string = "",
+  issues: string[] = []
+) {
+  return apiPost("/rides/feedback", {
+    ride_id: rideId,
+    passenger_id: passengerId,
+    rating,
+    feedback_text: feedbackText,
+    issues,
   });
 }
 

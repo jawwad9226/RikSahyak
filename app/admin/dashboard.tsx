@@ -1,6 +1,7 @@
 import { apiGet } from "@/src/services/api";
+import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { ActivityIndicator, ScrollView, StyleSheet, Text, View } from "react-native";
+import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View } from "react-native";
 
 interface DashboardStats {
   totalRides: number;
@@ -17,6 +18,7 @@ export default function AdminDashboard() {
   const [stats, setStats] = useState<DashboardStats | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const router = useRouter();
 
   useEffect(() => {
     const fetchStats = async () => {
@@ -108,22 +110,22 @@ export default function AdminDashboard() {
 
       <Text style={styles.sectionTitle}>Quick Actions</Text>
       <View style={styles.actionGrid}>
-        <View style={styles.actionCard}>
-          <Text style={styles.actionTitle}>Driver Management</Text>
-          <Text style={styles.actionDesc}>Add, remove, or manage drivers</Text>
-        </View>
-        <View style={styles.actionCard}>
-          <Text style={styles.actionTitle}>Revenue Reports</Text>
-          <Text style={styles.actionDesc}>View detailed earnings reports</Text>
-        </View>
-        <View style={styles.actionCard}>
+        <Pressable style={styles.actionCard} onPress={() => router.push("/admin/users")}>
+          <Text style={styles.actionTitle}>User Management</Text>
+          <Text style={styles.actionDesc}>Manage drivers and passengers</Text>
+        </Pressable>
+        <Pressable style={styles.actionCard} onPress={() => router.push("/admin/rides")}>
+          <Text style={styles.actionTitle}>Ride Management</Text>
+          <Text style={styles.actionDesc}>Monitor and control active rides</Text>
+        </Pressable>
+        <Pressable style={styles.actionCard} onPress={() => router.push("/admin/analytics")}>
+          <Text style={styles.actionTitle}>Analytics</Text>
+          <Text style={styles.actionDesc}>View detailed statistics and reports</Text>
+        </Pressable>
+        <Pressable style={styles.actionCard} onPress={() => router.push("/admin/settings")}>
           <Text style={styles.actionTitle}>System Settings</Text>
-          <Text style={styles.actionDesc}>Configure app settings</Text>
-        </View>
-        <View style={styles.actionCard}>
-          <Text style={styles.actionTitle}>Support Tickets</Text>
-          <Text style={styles.actionDesc}>Handle user complaints</Text>
-        </View>
+          <Text style={styles.actionDesc}>Configure app settings and pricing</Text>
+        </Pressable>
       </View>
     </ScrollView>
   );
@@ -145,6 +147,12 @@ const styles = StyleSheet.create({
     fontSize: 16,
     color: "#666",
     textAlign: "center",
+  },
+  errorText: {
+    fontSize: 16,
+    color: "#F44336",
+    textAlign: "center",
+    marginTop: 10,
   },
   sectionTitle: {
     fontSize: 18,

@@ -46,7 +46,8 @@ export default function DriverHome() {
       const currentRes = await getDriverCurrentRide(user.user_id);
       if (currentRes.success && currentRes.data) {
         const data: any = currentRes.data;
-        setCurrentRide(data.ride || null);
+        // Data now returns ride object directly, not wrapped in a "ride" property
+        setCurrentRide((data.ride_id || data.id) ? data : null);
       }
 
       // Load requested rides
@@ -64,8 +65,8 @@ export default function DriverHome() {
 
   useEffect(() => {
     loadData();
-    // Poll every 5 seconds
-    const interval = setInterval(loadData, 5000);
+    // Poll every 15 seconds (reduced frequency to prevent excessive API calls)
+    const interval = setInterval(loadData, 15000);
     return () => clearInterval(interval);
   }, [user?.user_id]);
 

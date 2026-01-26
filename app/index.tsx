@@ -4,6 +4,20 @@ import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
 import { ActivityIndicator, StyleSheet, View } from "react-native";
 
+// Suppress aria-hidden accessibility warning from React Native Web's Alert component
+if (typeof console !== "undefined") {
+  const originalWarn = console.warn;
+  console.warn = (...args: any[]) => {
+    if (
+      args[0]?.includes?.("aria-hidden") ||
+      args.some?.((arg) => typeof arg === "string" && arg.includes("aria-hidden"))
+    ) {
+      return;
+    }
+    originalWarn(...args);
+  };
+}
+
 export default function Index() {
   const router = useRouter();
   const { user, loading, setUser } = useUser();
@@ -12,7 +26,7 @@ export default function Index() {
   // If user is already set, navigate to their role screen
   useEffect(() => {
     if (!loading && user) {
-      router.replace(`/${user.role}`);
+      router.replace(user.role as any);
     } else if (!loading && !user) {
       setShowModal(true);
     }
@@ -21,7 +35,7 @@ export default function Index() {
   const handleSelectUser = async (selected: { user_id: string; name?: string; role: "passenger" | "driver" | "admin" }) => {
     await setUser(selected);
     setShowModal(false);
-    router.replace(`/${selected.role}`);
+    router.replace(selected.role as any);
   };
 
   if (loading) {
@@ -51,9 +65,6 @@ const styles = StyleSheet.create({
     fontWeight: "bold",
     color: "#FFC107",
     marginBottom: 5,
-    textShadowColor: "#000",
-    textShadowOffset: { width: 1, height: 1 },
-    textShadowRadius: 3,
   },
   subtitle: {
     fontSize: 16,

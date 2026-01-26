@@ -1,8 +1,8 @@
 import { API_CONFIG } from "@/src/config/env";
 import { useUser } from "@/src/context/UserContext";
-import { completeRide, getRideStatus, startRide, updateDriverProgress } from "@/src/services/api";
+import { getRideStatus, startRide, updateDriverProgress } from "@/src/services/api";
 import { useEffect, useState } from "react";
-import { Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Linking, Modal, Platform, Pressable, StyleSheet, Text, TextInput, View } from "react-native";
 
 interface CurrentRide {
   ride_id: string;
@@ -14,6 +14,7 @@ interface CurrentRide {
   dropoff: string;
   fare: number;
   distance: number;
+  pickup_otp?: string;
 }
 
 // Progress states
@@ -25,6 +26,11 @@ export default function CurrentRide() {
   const [isLoading, setIsLoading] = useState(true);
   const [rideId, setRideId] = useState<string | null>(null);
   const [isUpdatingProgress, setIsUpdatingProgress] = useState(false);
+  
+  // OTP Modal State
+  const [isOtpModalVisible, setIsOtpModalVisible] = useState(false);
+  const [otpInput, setOtpInput] = useState("");
+  const [isSubmittingOtp, setIsSubmittingOtp] = useState(false);
 
   // Get current ride for this driver
   useEffect(() => {
@@ -78,6 +84,7 @@ export default function CurrentRide() {
             dropoff: data.dropoff_location,
             fare: data.estimated_fare || data.fare || 0,
             distance: data.distance_km || 0,
+            pickup_otp: data.pickup_otp,
           });
         }
       } catch (error) {
@@ -87,70 +94,80 @@ export default function CurrentRide() {
 
     fetchRideDetails();
 
-    // Poll for updates every 3 seconds
-    const interval = setInterval(fetchRideDetails, 3000);
+    // Poll for updates every 10 seconds (reduced frequency to prevent excessive API calls)
+    const interval = setInterval(fetchRideDetails, 10000);
     return () => clearInterval(interval);
   }, [rideId]);
 
-  const handleCallPassenger = () => {
-    if (currentRide?.passenger_phone) {
-      Linking.openURL(`tel:${currentRide.passenger_phone}`);
+  const handleStartRide = async () => {
+    // Open OTP Modal if status is DRIVER_ASSIGNED
+    if (currentRide?.status === "DRIVER_ASSIGNED") {
+      setOtpInput("");
+      setIsOtpModalVisible(true);
     } else {
-      Alert.alert("Error", "Passenger phone number not available");
+      // Fallback for direct start if already in progress or other states (unlikely)
+      Alert.alert("Error", "Ride already started or invalid state.");
+    }
+  };
+  
+  const submitOtp = async () => {
+    if (!rideId || !otpInput || otpInput.length !== 4) {
+      Alert.alert("Invalid input", "Please enter a valid 4-digit OTP.");
+      return;
+    }
+    
+    setIsSubmittingOtp(true);
+    try {
+      const response = await startRide(rideId, user?.user_id, otpInput);
+      if (response.success) {
+        setIsOtpModalVisible(false);
+        setOtpInput("");
+        Alert.alert("Success", "Ride completed successfully!");
+        if (currentRide) {
+          setCurrentRide({ ...currentRide, status: "COMPLETED" });
+        }
+      } else {
+        Alert.alert("Error", response.error || "Failed to complete ride. Check OTP.");
+      }
+    } catch (error) {
+      Alert.alert("Error", "Failed to start ride: " + String(error));
+    } finally {
+      setIsSubmittingOtp(false);
     }
   };
 
-  const handleCompleteRide = async () => {
-    if (!rideId) return;
+  const handleCallPassenger = () => {
+    if (!currentRide?.passenger_phone) {
+      Alert.alert("Error", "Passenger phone number not available");
+      return;
+    }
 
-    Alert.alert(
-      "Complete Ride",
-      "Mark this ride as completed?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Complete", onPress: async () => {
-          try {
-            const response = await completeRide(rideId, user?.user_id);
-            if (response.success) {
-              Alert.alert("Completed", "Ride marked as completed. Earnings updated.");
-              setRideId(null);
-              setCurrentRide(null);
-            } else {
-              Alert.alert("Error", response.error || "Failed to complete ride");
-            }
-          } catch (error) {
-            Alert.alert("Error", "Failed to complete ride: " + String(error));
-          }
-        }},
-      ]
-    );
-  };
-
-  const handleStartRide = async () => {
-    if (!rideId) return;
-
-    Alert.alert(
-      "Start Ride",
-      "Confirm pickup and start the ride?",
-      [
-        { text: "Cancel", style: "cancel" },
-        { text: "Start", onPress: async () => {
-          try {
-            const response = await startRide(rideId, user?.user_id);
-            if (response.success) {
-              Alert.alert("Started", "Ride started. Safe journey!");
-              if (currentRide) {
-                setCurrentRide({ ...currentRide, status: "IN_PROGRESS" });
+    if (Platform.OS === "web") {
+      // On web, show an alert with the phone number
+      Alert.alert(
+        "Call Passenger",
+        `Passenger's phone number: ${currentRide.passenger_phone}`,
+        [
+          { text: "Close", style: "cancel" },
+          { 
+            text: "Copy Number", 
+            onPress: () => {
+              // Copy to clipboard on web (if available)
+              if (navigator.clipboard) {
+                navigator.clipboard.writeText(currentRide.passenger_phone)
+                  .then(() => Alert.alert("Copied", "Phone number copied to clipboard."))
+                  .catch(() => Alert.alert("Error", "Could not copy to clipboard."));
+              } else {
+                Alert.alert("Not Supported", "Clipboard API not available in this browser.");
               }
-            } else {
-              Alert.alert("Error", response.error || "Failed to start ride");
-            }
-          } catch (error) {
-            Alert.alert("Error", "Failed to start ride: " + String(error));
-          }
-        }},
-      ]
-    );
+            } 
+          },
+        ]
+      );
+    } else {
+      // On native platforms, use tel: link
+      Linking.openURL(`tel:${currentRide.passenger_phone}`);
+    }
   };
 
   const handleUpdateProgress = async (nextProgress: ProgressState) => {
@@ -216,14 +233,14 @@ export default function CurrentRide() {
 
       <View style={styles.statusCard}>
         <Text style={styles.statusText}>
-          Status: {currentRide.status === "accepted" ? "Waiting for Pickup" :
-                   currentRide.status === "in_progress" ? "In Progress" :
+          Status: {currentRide.status === "DRIVER_ASSIGNED" ? "Waiting for Pickup" :
+                   currentRide.status === "IN_PROGRESS" ? "In Progress" :
                    currentRide.status}
         </Text>
       </View>
 
       {/* Driver Progress Display */}
-      {currentRide.status !== "completed" && currentRide.status !== "cancelled" && (
+      {currentRide.status !== "COMPLETED" && currentRide.status !== "CANCELLED" && (
         <View style={styles.progressCard}>
           <Text style={styles.progressLabel}>Progress:</Text>
           <Text style={styles.progressValue}>
@@ -270,7 +287,7 @@ export default function CurrentRide() {
         </Pressable>
 
         {/* Progress Update Buttons */}
-        {currentRide.status !== "completed" && currentRide.status !== "cancelled" && (
+        {currentRide.status !== "COMPLETED" && currentRide.status !== "CANCELLED" && (
           <View style={styles.progressButtonContainer}>
             {(!currentRide.driver_progress || currentRide.driver_progress === "NOT_STARTED") && (
               <Pressable
@@ -319,7 +336,7 @@ export default function CurrentRide() {
           </View>
         )}
 
-        {currentRide.status === "accepted" && (
+        {currentRide.status === "DRIVER_ASSIGNED" && (
           <Pressable
             style={({ pressed }) => [
               styles.startButton,
@@ -327,27 +344,147 @@ export default function CurrentRide() {
             ]}
             onPress={handleStartRide}
           >
-            <Text style={styles.startButtonText}>Start Ride</Text>
+            <Text style={styles.startButtonText}>Verify & Complete</Text>
           </Pressable>
         )}
 
-        {currentRide.status === "in_progress" && (
-          <Pressable
-            style={({ pressed }) => [
-              styles.completeButton,
-              pressed && styles.pressed,
-            ]}
-            onPress={handleCompleteRide}
-          >
-            <Text style={styles.completeButtonText}>Complete Ride</Text>
-          </Pressable>
+        {currentRide.status === "COMPLETED" && (
+          <View style={styles.completedContainer}>
+            <Text style={styles.completedText}>✅ Ride Completed</Text>
+            <Text style={styles.completedSubtext}>Waiting for passenger feedback</Text>
+          </View>
         )}
       </View>
+
+      {/* OTP Modal */}
+      <Modal
+        animationType="slide"
+        transparent={true}
+        visible={isOtpModalVisible}
+        onRequestClose={() => setIsOtpModalVisible(false)}
+        accessible={true}
+        accessibilityViewIsModal={true}
+      >
+        <View style={styles.centeredView} accessible={true}>
+          <Pressable 
+            style={styles.backdrop} 
+            onPress={() => setIsOtpModalVisible(false)}
+            accessible={false}
+          />
+          <View style={styles.modalView} accessible={true}>
+            <Text style={styles.modalTitle}>Enter OTP</Text>
+            <Text style={styles.modalSubtitle}>Ask passenger for the 4-digit code to complete ride</Text>
+            
+            <TextInput
+              style={styles.otpInput}
+              onChangeText={setOtpInput}
+              value={otpInput}
+              placeholder="0000"
+              keyboardType="number-pad"
+              maxLength={4}
+              autoFocus={true}
+            />
+
+            <View style={styles.modalButtons}>
+              <Pressable
+                style={[styles.modalBtn, styles.cancelBtn]}
+                onPress={() => setIsOtpModalVisible(false)}
+              >
+                <Text style={styles.modalBtnText}>Cancel</Text>
+              </Pressable>
+              
+              <Pressable
+                style={[styles.modalBtn, styles.submitBtn, isSubmittingOtp && styles.btnDisabled]}
+                onPress={submitOtp}
+                disabled={isSubmittingOtp}
+              >
+                <Text style={[styles.modalBtnText, {color: 'white'}]}>
+                  {isSubmittingOtp ? "Verifying..." : "Complete Ride"}
+                </Text>
+              </Pressable>
+            </View>
+          </View>
+        </View>
+      </Modal>
     </View>
   );
 }
 
 const styles = StyleSheet.create({
+  // Modal Styles
+  centeredView: {
+    flex: 1,
+    justifyContent: "center",
+    alignItems: "center",
+    backgroundColor: "rgba(0,0,0,0.5)",
+  },
+  backdrop: {
+    position: 'absolute' as any,
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+  },
+  modalView: {
+    margin: 20,
+    backgroundColor: "white",
+    borderRadius: 20,
+    padding: 35,
+    alignItems: "center",
+    boxShadow: "0px 2px 4px rgba(0,0,0,0.25)",
+    elevation: 5,
+    width: '80%',
+  },
+  modalTitle: {
+    fontSize: 20,
+    fontWeight: "bold",
+    marginBottom: 10,
+  },
+  modalSubtitle: {
+    fontSize: 14,
+    color: "#666",
+    marginBottom: 20,
+    textAlign: "center",
+  },
+  otpInput: {
+    height: 50,
+    width: '100%',
+    borderColor: '#ddd',
+    borderWidth: 1,
+    borderRadius: 8,
+    fontSize: 24,
+    textAlign: 'center',
+    marginBottom: 20,
+    letterSpacing: 8,
+    fontWeight: 'bold',
+  },
+  modalButtons: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    width: '100%',
+  },
+  modalBtn: {
+    borderRadius: 8,
+    padding: 12,
+    elevation: 2,
+    minWidth: '45%',
+    alignItems: 'center',
+  },
+  cancelBtn: {
+    backgroundColor: '#f5f5f5',
+    borderWidth: 1,
+    borderColor: '#ddd',
+  },
+  submitBtn: {
+    backgroundColor: '#FFC107',
+  },
+  btnDisabled: {
+    backgroundColor: '#ccc',
+  },
+  modalBtnText: {
+    fontWeight: "bold",
+    color: '#333',
+  },
   container: {
     flex: 1,
     padding: 20,
@@ -521,5 +658,22 @@ const styles = StyleSheet.create({
   },
   disabled: {
     opacity: 0.5,
+  },
+  completedContainer: {
+    alignItems: "center",
+    padding: 20,
+    backgroundColor: "#E8F5E8",
+    borderRadius: 8,
+    marginTop: 10,
+  },
+  completedText: {
+    fontSize: 18,
+    fontWeight: "bold",
+    color: "#2E7D32",
+    marginBottom: 5,
+  },
+  completedSubtext: {
+    fontSize: 14,
+    color: "#666",
   },
 });

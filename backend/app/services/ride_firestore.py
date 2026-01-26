@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import Any, Dict, List, Optional, Tuple
 from datetime import datetime
+import random
 
 from app.services.firebase_init import get_db
 from app.core.firestore_models import (
@@ -30,7 +31,7 @@ class RideStateError(Exception):
 # Valid state transitions
 VALID_TRANSITIONS = {
     "REQUESTED": ["DRIVER_ASSIGNED", "CANCELLED"],
-    "DRIVER_ASSIGNED": ["IN_PROGRESS", "CANCELLED"],
+    "DRIVER_ASSIGNED": ["IN_PROGRESS", "COMPLETED", "CANCELLED"],
     "IN_PROGRESS": ["COMPLETED"],
     "COMPLETED": [],
     "CANCELLED": [],
@@ -51,13 +52,12 @@ def _format_ride_id(n: int) -> str:
 def _has_passenger_active_ride(passenger_id: str) -> bool:
     """Check if passenger has any active ride (REQUESTED, DRIVER_ASSIGNED, or IN_PROGRESS)."""
     db = get_db()
-    from google.cloud.firestore import FieldFilter
     
     for status in ACTIVE_STATUSES:
         query = db.collection(COLLECTION_RIDES).where(
-            filter=FieldFilter("passenger_id", "==", passenger_id)
+            "passenger_id", "==", passenger_id
         ).where(
-            filter=FieldFilter("status", "==", status)
+            "status", "==", status
         ).limit(1)
         for _ in query.stream():
             return True
@@ -67,13 +67,12 @@ def _has_passenger_active_ride(passenger_id: str) -> bool:
 def _has_driver_active_ride(driver_id: str) -> bool:
     """Check if driver has any active ride (DRIVER_ASSIGNED or IN_PROGRESS)."""
     db = get_db()
-    from google.cloud.firestore import FieldFilter
     
     for status in ["DRIVER_ASSIGNED", "IN_PROGRESS"]:
         query = db.collection(COLLECTION_RIDES).where(
-            filter=FieldFilter("driver_id", "==", driver_id)
+            "driver_id", "==", driver_id
         ).where(
-            filter=FieldFilter("status", "==", status)
+            "status", "==", status
         ).limit(1)
         for _ in query.stream():
             return True
@@ -88,6 +87,32 @@ def _validate_state_transition(current_status: str, new_status: str) -> None:
             code="INVALID_STATE"
         )
 
+
+def _get_driver_info(driver_id: str) -> Optional[Dict[str, Any]]:
+    """Fetch driver information from Firestore or JSON fallback."""
+    db = get_db()
+    
+    # Try Firestore first
+    try:
+        doc = db.collection(COLLECTION_DRIVERS).document(driver_id).get()
+        if doc.exists:
+            data = doc.to_dict()
+            data["driver_id"] = driver_id
+            return data
+    except Exception:
+        pass
+    
+    # Fallback to JSON file
+    try:
+        from app.services.json_store import load_drivers_store
+        store = load_drivers_store()
+        for driver in store.get("drivers", []):
+            if driver.get("driver_id") == driver_id:
+                return driver
+    except Exception:
+        pass
+    
+    return None
 
 
 def _get_and_increment_counter(db) -> int:
@@ -153,6 +178,7 @@ def set_candidate_drivers(ride_id: str, driver_ids: List[str]) -> None:
 def assign_driver(ride_id: str, driver_id: str) -> None:
     """
     Assign driver to ride and set DRIVER_ASSIGNED status.
+    Also enriches ride with driver details (name, phone, vehicle).
     
     Args:
         ride_id: The ride to assign to
@@ -186,23 +212,40 @@ def assign_driver(ride_id: str, driver_id: str) -> None:
             code="CONFLICT"
         )
     
-    db.collection(COLLECTION_RIDES).document(ride_id).update({
+    # Fetch driver details from Firestore or JSON
+    driver_info = _get_driver_info(driver_id)
+    
+    # Generate 4-digit OTP
+    pickup_otp = f"{random.randint(1000, 9999)}"
+    
+    update_data = {
         "driver_id": driver_id,
         "status": "DRIVER_ASSIGNED",
         "assigned_at": _now_iso(),
-    })
+        "pickup_otp": pickup_otp,
+    }
+    
+    # Add driver details if found
+    if driver_info:
+        update_data["driver_name"] = driver_info.get("name", driver_info.get("driver_name"))
+        update_data["driver_phone"] = driver_info.get("phone", driver_info.get("driver_phone"))
+        update_data["vehicle_number"] = driver_info.get("vehicle_number")
+    
+    db.collection(COLLECTION_RIDES).document(ride_id).update(update_data)
 
 
-def update_status(ride_id: str, status: str) -> None:
+def update_status(ride_id: str, status: str, otp: str = None) -> None:
     """
     Update ride status with validation of state transitions.
     
     Args:
         ride_id: The ride to update
         status: The new status
+        otp: OTP for verification (required for starting ride)
         
     Raises:
         RideStateError: If state transition is invalid
+        ValueError: If OTP is incorrect
     """
     db = get_db()
     ride_ref = db.collection(COLLECTION_RIDES).document(ride_id)
@@ -216,6 +259,15 @@ def update_status(ride_id: str, status: str) -> None:
     
     # Validate transition
     _validate_state_transition(current_status, status)
+    
+    # OTP Validation for starting ride
+    if status == "IN_PROGRESS":
+        stored_otp = ride.get("pickup_otp")
+        if stored_otp and otp != stored_otp:
+            # Fallback for old records or testing: 
+            # If backend generated OTP, it MUST match.
+            # If frontend didn't send OTP, fail.
+            raise ValueError("Invalid OTP. Please ask passenger for the correct code.")
     
     patch = {"status": status}
     now = _now_iso()
@@ -353,9 +405,8 @@ def find_drivers_for_ride(ride_id: str, max_results: int = 3) -> List[Dict[str, 
 def list_requested_rides() -> List[Dict[str, Any]]:
     """Get all rides with status=REQUESTED, ordered by created_at."""
     db = get_db()
-    from google.cloud.firestore import FieldFilter
     query = db.collection(COLLECTION_RIDES).where(
-        filter=FieldFilter("status", "==", "REQUESTED")
+        "status", "==", "REQUESTED"
     ).order_by("created_at")
     rides = []
     for doc in query.stream():
@@ -368,12 +419,11 @@ def list_requested_rides() -> List[Dict[str, Any]]:
 def get_driver_assigned_ride(driver_id: str) -> Optional[Dict[str, Any]]:
     """Get the ride currently assigned to this driver (DRIVER_ASSIGNED or IN_PROGRESS)."""
     db = get_db()
-    from google.cloud.firestore import FieldFilter
     # Check DRIVER_ASSIGNED first
     query = db.collection(COLLECTION_RIDES).where(
-        filter=FieldFilter("driver_id", "==", driver_id)
+        "driver_id", "==", driver_id
     ).where(
-        filter=FieldFilter("status", "==", "DRIVER_ASSIGNED")
+        "status", "==", "DRIVER_ASSIGNED"
     ).limit(1)
     for doc in query.stream():
         ride_data = doc.to_dict()
@@ -381,11 +431,10 @@ def get_driver_assigned_ride(driver_id: str) -> Optional[Dict[str, Any]]:
         return ride_data
     
     # Check IN_PROGRESS
-    from google.cloud.firestore import FieldFilter
     query = db.collection(COLLECTION_RIDES).where(
-        filter=FieldFilter("driver_id", "==", driver_id)
+        "driver_id", "==", driver_id
     ).where(
-        filter=FieldFilter("status", "==", "IN_PROGRESS")
+        "status", "==", "IN_PROGRESS"
     ).limit(1)
     for doc in query.stream():
         ride_data = doc.to_dict()
@@ -398,14 +447,13 @@ def get_driver_assigned_ride(driver_id: str) -> Optional[Dict[str, Any]]:
 def get_passenger_current_ride(passenger_id: str) -> Optional[Dict[str, Any]]:
     """Get the current ride for a passenger (any ride that's not completed or cancelled)."""
     db = get_db()
-    from google.cloud.firestore import FieldFilter
     statuses = ["REQUESTED", "DRIVER_ASSIGNED", "IN_PROGRESS"]
     
     for status in statuses:
         query = db.collection(COLLECTION_RIDES).where(
-            filter=FieldFilter("passenger_id", "==", passenger_id)
+            "passenger_id", "==", passenger_id
         ).where(
-            filter=FieldFilter("status", "==", status)
+            "status", "==", status
         ).limit(1)
         for doc in query.stream():
             ride_data = doc.to_dict()

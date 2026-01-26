@@ -53,7 +53,7 @@ export default function LocationMap({
         <View style={styles.webHeader}>
           <Text style={styles.webTitle}>Map View</Text>
           {onClose && (
-            <Pressable style={styles.closeButton} onPress={onClose}>
+            <Pressable style={styles.webCloseButton} onPress={onClose}>
               <Text style={styles.closeText}>✕</Text>
             </Pressable>
           )}
@@ -313,7 +313,7 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     color: colors.secondary,
   },
-  closeButton: {
+  webCloseButton: {
     width: 32,
     height: 32,
     borderRadius: 16,

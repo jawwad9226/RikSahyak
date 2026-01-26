@@ -1,0 +1,24 @@
+{
+	"folders": [
+		{
+			"path": "."
+		}
+	],
+	"settings": {
+		"python-envs.defaultEnvManager": "ms-python.python:conda",
+		"python-envs.defaultPackageManager": "ms-python.python:conda",
+		"terminal.integrated.profiles.linux": {
+			"RikSahyak-Zsh": {
+				"path": "/usr/bin/zsh",
+				"args": [
+					"-l",
+					"-i",
+					"-c",
+					"conda activate riksahyak; exec zsh"
+				],
+				"icon": "terminal-ubuntu"
+			}
+		},
+		"terminal.integrated.defaultProfile.linux": "RikSahyak-Zsh"
+	}
+}

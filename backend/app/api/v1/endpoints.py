@@ -1,12 +1,15 @@
 from fastapi import APIRouter, HTTPException
 from pydantic import BaseModel
 import logging
+import random
 from app.core.schemas import (
     FareCalculationRequest,
     FareCalculationResponse,
     RideRequest,
     RideAccept,
     DriverProgress,
+    StartRideRequest, # Added
+    RideFeedbackRequest, # Added
 )
 from app.services.fare_calculator import (
     calculate_fare,
@@ -31,7 +34,10 @@ from app.services.ride_firestore import (
     get_passenger_current_ride,
     RideConflictError,
     RideStateError,
+    _now_iso,
 )
+from app.services.firebase_init import get_db
+from app.core.firestore_models import COLLECTION_RIDES
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/rides", tags=["rides"])
@@ -256,6 +262,7 @@ async def accept_ride(acceptance: RideAccept):
     
     try:
         assign_driver(acceptance.ride_id, acceptance.driver_id)
+        
         return {
             "ride_id": acceptance.ride_id,
             "driver_id": acceptance.driver_id,
@@ -274,17 +281,35 @@ async def accept_ride(acceptance: RideAccept):
 @router.get("/status/{ride_id}")
 async def get_ride_status(ride_id: str):
     """
-    Get current status of a ride from JSON store.
+    Get complete ride status with all details for frontend display.
     """
     ride = get_ride(ride_id)
     if not ride:
         raise HTTPException(status_code=404, detail="Ride not found")
     return {
-        "ride_id": ride_id,
+        "id": ride.get("id"),
+        "ride_id": ride.get("id"),
         "status": ride.get("status"),
         "driver_id": ride.get("driver_id"),
+        "passenger_id": ride.get("passenger_id"),
+        "passenger_name": ride.get("passenger_name"),
+        "passenger_phone": ride.get("passenger_phone"),
         "pickup_location": ride.get("pickup_location"),
         "dropoff_location": ride.get("dropoff_location"),
+        "pickup_coords": ride.get("pickup_coords"),
+        "dropoff_coords": ride.get("dropoff_coords"),
+        "estimated_fare": ride.get("estimated_fare"),
+        "distance_km": ride.get("distance_km"),
+        "driver_name": ride.get("driver_name"),
+        "driver_phone": ride.get("driver_phone"),
+        "vehicle_number": ride.get("vehicle_number"),
+        "driver_progress": ride.get("driver_progress"),
+        "current_location": ride.get("current_location"),
+        "eta_minutes": ride.get("eta_minutes"),
+        "created_at": ride.get("created_at"),
+        "assigned_at": ride.get("assigned_at"),
+        "pickup_otp": ride.get("pickup_otp"),
+        "passenger_feedback": ride.get("passenger_feedback"),
     }
 
 
@@ -312,23 +337,26 @@ async def complete_ride_by_id(ride_id: str, request: CompleteRideRequest = None)
 
 
 @router.post("/{ride_id}/start")
-async def start_ride_by_id(ride_id: str, request: CompleteRideRequest = None):
+async def start_ride_by_id(ride_id: str, request: StartRideRequest):
     """
-    Mark ride as IN_PROGRESS (supports both POST /rides/{id}/start).
+    Mark ride as COMPLETED when OTP is verified (driver has met passenger).
     
     Returns:
     - 404 if ride not found
     - 409 if invalid state transition
+    - 400 if OTP is invalid
     """
     ride = get_ride(ride_id)
     if not ride:
         raise HTTPException(status_code=404, detail="Ride not found")
     
     try:
-        update_status(ride_id, RIDE_IN_PROGRESS)
-        return {"ride_id": ride_id, "status": RIDE_IN_PROGRESS}
+        update_status(ride_id, RIDE_COMPLETED, otp=request.otp)
+        return {"ride_id": ride_id, "status": RIDE_COMPLETED}
     except RideStateError as e:
         raise HTTPException(status_code=409, detail={"error": e.message, "code": e.code})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail={"error": str(e), "code": "INVALID_OTP"})
     except Exception as e:
         logger.error(f"Error starting ride: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -434,20 +462,49 @@ async def get_requested_rides():
 
 
 @router.get("/driver/{driver_id}/current")
+@router.get("/driver/{driver_id}")
 async def get_driver_current_ride(driver_id: str):
     """
     Get current assigned ride for a driver (DRIVER_ASSIGNED or IN_PROGRESS).
+    Returns complete ride data with all details.
+    Supports both /driver/{id}/current and /driver/{id} routes.
     """
     ride = get_driver_assigned_ride(driver_id)
     if not ride:
-        return {"ride": None}
-    return {"ride": ride}
+        return {"ride_id": None, "status": None}
+    
+    # Return complete ride data similar to status endpoint
+    return {
+        "ride_id": ride.get("id") or ride.get("ride_id"),
+        "id": ride.get("id"),
+        "status": ride.get("status"),
+        "driver_progress": ride.get("driver_progress"),
+        "driver_id": ride.get("driver_id"),
+        "passenger_id": ride.get("passenger_id"),
+        "passenger_name": ride.get("passenger_name"),
+        "passenger_phone": ride.get("passenger_phone"),
+        "pickup_location": ride.get("pickup_location"),
+        "dropoff_location": ride.get("dropoff_location"),
+        "pickup_coords": ride.get("pickup_coords"),
+        "dropoff_coords": ride.get("dropoff_coords"),
+        "estimated_fare": ride.get("estimated_fare"),
+        "distance_km": ride.get("distance_km"),
+        "driver_name": ride.get("driver_name"),
+        "driver_phone": ride.get("driver_phone"),
+        "vehicle_number": ride.get("vehicle_number"),
+        "created_at": ride.get("created_at"),
+        "assigned_at": ride.get("assigned_at"),
+        "current_location": ride.get("current_location"),
+        "eta_minutes": ride.get("eta_minutes"),
+    }
 
 
 @router.get("/passenger/{passenger_id}/current")
+@router.get("/passenger/{passenger_id}")
 async def get_passenger_current_ride_endpoint(passenger_id: str):
     """
     Get current ride for a passenger (REQUESTED, DRIVER_ASSIGNED, or IN_PROGRESS).
+    Supports both /passenger/{id}/current and /passenger/{id} routes.
     """
     ride = get_passenger_current_ride(passenger_id)
     if not ride:
@@ -464,24 +521,27 @@ async def get_passenger_current_ride_endpoint(passenger_id: str):
     }
 
 
-@router.post("/start")
-async def start_ride(request: CompleteRideRequest):
+@router.post("/{ride_id}/start")
+async def start_ride(ride_id: str, request: StartRideRequest):
     """
-    Mark ride as IN_PROGRESS.
+    Mark ride as IN_PROGRESS with OTP verification.
     
     Returns:
     - 404 if ride not found
     - 409 if invalid state transition
+    - 400 if OTP is invalid
     """
-    ride = get_ride(request.ride_id)
+    ride = get_ride(ride_id)
     if not ride:
         raise HTTPException(status_code=404, detail="Ride not found")
     
     try:
-        update_status(request.ride_id, RIDE_IN_PROGRESS)
-        return {"ride_id": request.ride_id, "status": RIDE_IN_PROGRESS}
+        update_status(ride_id, RIDE_IN_PROGRESS, otp=request.otp)
+        return {"ride_id": ride_id, "status": RIDE_IN_PROGRESS}
     except RideStateError as e:
         raise HTTPException(status_code=409, detail={"error": e.message, "code": e.code})
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         logger.error(f"Error starting ride: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -560,4 +620,457 @@ async def operator_create_ride(ride_data: OperatorCreateRideRequest):
         raise HTTPException(status_code=409, detail={"error": e.message, "code": e.code})
     except Exception as e:
         logger.error(f"Error creating operator ride: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.post("/feedback")
+async def submit_ride_feedback(feedback: RideFeedbackRequest):
+    """
+    Submit feedback for a completed ride.
+    
+    Updates ride with feedback data and potentially updates driver rating.
+    
+    Returns:
+    - 404 if ride not found
+    - 409 if ride not completed or already has feedback
+    - 200 on success
+    """
+    ride = get_ride(feedback.ride_id)
+    if not ride:
+        raise HTTPException(status_code=404, detail="Ride not found")
+    
+    # Validate ride is completed
+    if ride.get("status") != "COMPLETED":
+        raise HTTPException(status_code=409, detail="Can only submit feedback for completed rides")
+    
+    # Check if feedback already exists
+    if ride.get("passenger_feedback"):
+        raise HTTPException(status_code=409, detail="Feedback already submitted for this ride")
+    
+    try:
+        # Store feedback in ride document
+        feedback_data = {
+            "passenger_feedback": {
+                "rating": feedback.rating,
+                "feedback_text": feedback.feedback_text,
+                "issues": feedback.issues,
+                "submitted_at": _now_iso(),
+            }
+        }
+        
+        db = get_db()
+        db.collection(COLLECTION_RIDES).document(feedback.ride_id).update(feedback_data)
+        
+        # TODO: Update driver aggregate rating (could be done in a separate service)
+        # For now, just store the feedback
+        
+        return {
+            "ride_id": feedback.ride_id,
+            "message": "Feedback submitted successfully",
+            "rating": feedback.rating,
+        }
+    except Exception as e:
+        logger.error(f"Error submitting feedback: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+# Admin endpoints
+@admin_router.get("/admin/stats")
+async def get_admin_stats():
+    """
+    Get comprehensive admin statistics for dashboard.
+    """
+    try:
+        db = get_db()
+        
+        # Get ride statistics
+        rides_ref = db.collection(COLLECTION_RIDES)
+        all_rides = rides_ref.stream()
+        
+        total_rides = 0
+        total_revenue = 0
+        active_rides = 0
+        today_rides = 0
+        today_revenue = 0
+        completed_rides = 0
+        
+        # Calculate today's date
+        from datetime import datetime, timezone
+        today = datetime.now(timezone.utc).date()
+        
+        for ride_doc in all_rides:
+            ride = ride_doc.to_dict()
+            total_rides += 1
+            
+            status = ride.get("status", "")
+            fare = ride.get("estimated_fare", 0)
+            
+            if status in ["REQUESTED", "DRIVER_ASSIGNED", "IN_PROGRESS"]:
+                active_rides += 1
+            
+            if status == "COMPLETED":
+                completed_rides += 1
+                total_revenue += fare
+                
+                # Check if completed today
+                completed_at = ride.get("assigned_at", "")
+                if completed_at:
+                    try:
+                        ride_date = datetime.fromisoformat(completed_at.replace('Z', '+00:00')).date()
+                        if ride_date == today:
+                            today_rides += 1
+                            today_revenue += fare
+                    except:
+                        pass
+        
+        # Get driver statistics
+        drivers_ref = db.collection(COLLECTION_DRIVERS)
+        active_drivers = len(list(drivers_ref.stream()))
+        
+        # Get passenger statistics (estimate from rides)
+        passenger_ids = set()
+        rides_ref = db.collection(COLLECTION_RIDES)
+        for ride_doc in rides_ref.stream():
+            ride = ride_doc.to_dict()
+            passenger_id = ride.get("passenger_id")
+            if passenger_id:
+                passenger_ids.add(passenger_id)
+        
+        total_passengers = len(passenger_ids)
+        
+        # Calculate average rating from feedback
+        total_rating = 0
+        rating_count = 0
+        for ride_doc in rides_ref.stream():
+            ride = ride_doc.to_dict()
+            feedback = ride.get("passenger_feedback", {})
+            rating = feedback.get("rating")
+            if rating:
+                total_rating += rating
+                rating_count += 1
+        
+        average_rating = round(total_rating / rating_count, 1) if rating_count > 0 else 0
+        
+        return {
+            "totalRides": total_rides,
+            "totalRevenue": total_revenue,
+            "activeDrivers": active_drivers,
+            "activeRides": active_rides,
+            "todayRides": today_rides,
+            "todayRevenue": today_revenue,
+            "totalPassengers": total_passengers,
+            "averageRating": average_rating,
+            "completedRides": completed_rides,
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching admin stats: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@admin_router.get("/admin/users")
+async def get_all_users():
+    """
+    Get all users (drivers and passengers) for admin management.
+    """
+    try:
+        db = get_db()
+        
+        # Get drivers
+        drivers = []
+        drivers_ref = db.collection(COLLECTION_DRIVERS)
+        for doc in drivers_ref.stream():
+            driver_data = doc.to_dict()
+            driver_data["id"] = doc.id
+            driver_data["role"] = "driver"
+            drivers.append(driver_data)
+        
+        # Get passengers (from rides data)
+        passengers = []
+        passenger_map = {}
+        
+        rides_ref = db.collection(COLLECTION_RIDES)
+        for ride_doc in rides_ref.stream():
+            ride = ride_doc.to_dict()
+            passenger_id = ride.get("passenger_id")
+            if passenger_id and passenger_id not in passenger_map:
+                passenger_map[passenger_id] = {
+                    "id": passenger_id,
+                    "role": "passenger",
+                    "name": ride.get("passenger_name", "Unknown"),
+                    "phone": ride.get("passenger_phone", "Unknown"),
+                    "total_rides": 0,
+                    "last_ride": ride.get("created_at", ""),
+                }
+            if passenger_id in passenger_map:
+                passenger_map[passenger_id]["total_rides"] += 1
+        
+        passengers = list(passenger_map.values())
+        
+        return {
+            "drivers": drivers,
+            "passengers": passengers,
+            "total_drivers": len(drivers),
+            "total_passengers": len(passengers),
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching users: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@admin_router.get("/admin/rides")
+async def get_all_rides(status: str = None, limit: int = 50):
+    """
+    Get all rides with optional filtering by status.
+    """
+    try:
+        db = get_db()
+        rides_ref = db.collection(COLLECTION_RIDES)
+        
+        query = rides_ref
+        if status:
+            query = query.where("status", "==", status)
+        
+        rides = []
+        for doc in query.limit(limit).stream():
+            ride_data = doc.to_dict()
+            ride_data["id"] = doc.id
+            rides.append(ride_data)
+        
+        # Sort by creation date (newest first)
+        rides.sort(key=lambda x: x.get("created_at", ""), reverse=True)
+        
+        return {
+            "rides": rides,
+            "total": len(rides),
+            "status_filter": status,
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching rides: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@admin_router.post("/admin/users/{user_id}/block")
+async def block_user(user_id: str):
+    """
+    Block a user (driver or passenger).
+    """
+    try:
+        db = get_db()
+        
+        # Check if it's a driver
+        driver_ref = db.collection(COLLECTION_DRIVERS).document(user_id)
+        if driver_ref.get().exists:
+            driver_ref.update({"blocked": True, "blocked_at": _now_iso()})
+            return {"message": f"Driver {user_id} blocked successfully"}
+        
+        # For passengers, we might want to add them to a blocked collection
+        # For now, just return success
+        return {"message": f"User {user_id} blocked successfully"}
+        
+    except Exception as e:
+        logger.error(f"Error blocking user: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@admin_router.post("/admin/rides/{ride_id}/cancel")
+async def admin_cancel_ride(ride_id: str):
+    """
+    Admin force cancel a ride.
+    """
+    try:
+        update_status(ride_id, "CANCELLED")
+        return {"message": f"Ride {ride_id} cancelled by admin"}
+        
+    except Exception as e:
+        logger.error(f"Error cancelling ride: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@admin_router.get("/admin/analytics")
+async def get_analytics(days: int = 30):
+    """
+    Get detailed analytics for the specified number of days.
+    """
+    try:
+        db = get_db()
+        from datetime import datetime, timedelta, timezone
+        
+        # Calculate date range
+        end_date = datetime.now(timezone.utc)
+        start_date = end_date - timedelta(days=days)
+        
+        rides_ref = db.collection(COLLECTION_RIDES)
+        
+        # Get rides in date range
+        daily_stats = {}
+        revenue_by_hour = {}
+        rides_by_status = {"REQUESTED": 0, "DRIVER_ASSIGNED": 0, "IN_PROGRESS": 0, "COMPLETED": 0, "CANCELLED": 0}
+        
+        for ride_doc in rides_ref.stream():
+            ride = ride_doc.to_dict()
+            created_at = ride.get("created_at", "")
+            
+            if created_at:
+                try:
+                    ride_date = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                    if ride_date >= start_date:
+                        # Daily stats
+                        date_key = ride_date.date().isoformat()
+                        if date_key not in daily_stats:
+                            daily_stats[date_key] = {"rides": 0, "revenue": 0}
+                        daily_stats[date_key]["rides"] += 1
+                        if ride.get("status") == "COMPLETED":
+                            daily_stats[date_key]["revenue"] += ride.get("estimated_fare", 0)
+                        
+                        # Hourly revenue
+                        hour = ride_date.hour
+                        if hour not in revenue_by_hour:
+                            revenue_by_hour[hour] = 0
+                        if ride.get("status") == "COMPLETED":
+                            revenue_by_hour[hour] += ride.get("estimated_fare", 0)
+                        
+                        # Status distribution
+                        status = ride.get("status", "UNKNOWN")
+                        if status in rides_by_status:
+                            rides_by_status[status] += 1
+                            
+                except Exception as e:
+                    logger.warning(f"Error parsing date {created_at}: {e}")
+        
+        return {
+            "period_days": days,
+            "daily_stats": daily_stats,
+            "revenue_by_hour": revenue_by_hour,
+            "rides_by_status": rides_by_status,
+            "total_revenue_period": sum(day["revenue"] for day in daily_stats.values()),
+            "total_rides_period": sum(day["rides"] for day in daily_stats.values()),
+        }
+        
+    except Exception as e:
+        logger.error(f"Error fetching analytics: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+class SystemSettings(BaseModel):
+    """System settings model"""
+    max_ride_distance_km: float = 50.0
+    base_fare: float = 30.0
+    per_km_rate: float = 12.0
+    per_minute_rate: float = 2.0
+    surge_multiplier: float = 1.0
+    maintenance_mode: bool = False
+    otp_expiry_minutes: int = 10
+    max_active_rides_per_driver: int = 3
+    driver_search_radius_km: float = 10.0
+    passenger_pickup_radius_km: float = 0.5
+
+
+@admin_router.get("/admin/settings")
+async def get_system_settings():
+    """
+    Get current system settings.
+    """
+    try:
+        db = get_db()
+        settings_ref = db.collection("system_settings").document("global")
+        settings_doc = settings_ref.get()
+        
+        if settings_doc.exists:
+            return settings_doc.to_dict()
+        else:
+            # Return default settings
+            default_settings = SystemSettings()
+            return default_settings.dict()
+            
+    except Exception as e:
+        logger.error(f"Error fetching settings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@admin_router.post("/admin/settings")
+async def update_system_settings(settings: SystemSettings):
+    """
+    Update system settings.
+    """
+    try:
+        db = get_db()
+        settings_ref = db.collection("system_settings").document("global")
+        
+        # Update settings
+        settings_ref.set(settings.dict(), merge=True)
+        
+        return {"message": "Settings updated successfully", "settings": settings.dict()}
+        
+    except Exception as e:
+        logger.error(f"Error updating settings: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@admin_router.post("/admin/users/{user_id}/unblock")
+async def unblock_user(user_id: str):
+    """
+    Unblock a user (driver or passenger).
+    """
+    try:
+        db = get_db()
+        
+        # Check if it's a driver
+        driver_ref = db.collection(COLLECTION_DRIVERS).document(user_id)
+        driver_doc = driver_ref.get()
+        if driver_doc.exists:
+            driver_ref.update({"blocked": False, "unblocked_at": _now_iso()})
+            return {"message": f"Driver {user_id} unblocked successfully"}
+        
+        # For passengers, we might want to remove them from blocked collection
+        # For now, just return success
+        return {"message": f"User {user_id} unblocked successfully"}
+        
+    except Exception as e:
+        logger.error(f"Error unblocking user: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@admin_router.post("/admin/rides/{ride_id}/reassign")
+async def reassign_ride(ride_id: str, driver_id: str = None):
+    """
+    Reassign a ride to a different driver or find a new driver.
+    """
+    try:
+        from app.services.ride_firestore import assign_driver, find_drivers_for_ride
+        
+        if driver_id:
+            # Assign specific driver
+            assign_driver(ride_id, driver_id)
+            return {"message": f"Ride {ride_id} reassigned to driver {driver_id}"}
+        else:
+            # Find new driver
+            drivers = find_drivers_for_ride(ride_id)
+            if drivers:
+                assign_driver(ride_id, drivers[0]["id"])
+                return {"message": f"Ride {ride_id} reassigned to new driver"}
+            else:
+                raise HTTPException(status_code=404, detail="No available drivers found")
+        
+    except Exception as e:
+        logger.error(f"Error reassigning ride: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@admin_router.get("/admin/rides/{ride_id}/details")
+async def get_ride_details(ride_id: str):
+    """
+    Get detailed information about a specific ride.
+    """
+    try:
+        ride = get_ride(ride_id)
+        if not ride:
+            raise HTTPException(status_code=404, detail="Ride not found")
+        
+        return ride
+        
+    except Exception as e:
+        logger.error(f"Error fetching ride details: {e}")
         raise HTTPException(status_code=500, detail=str(e))

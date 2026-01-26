@@ -15,5 +15,6 @@
       "icon": "terminal-ubuntu"
     }
   },
-  "terminal.integrated.defaultProfile.linux": "RikSahyak-Zsh"
+  "terminal.integrated.defaultProfile.linux": "RikSahyak-Zsh",
+  "python-envs.pythonProjects": []
 }

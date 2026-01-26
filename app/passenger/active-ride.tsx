@@ -1,8 +1,10 @@
 import { API_CONFIG } from "@/src/config/env";
 import { useUser } from "@/src/context/UserContext";
 import { cancelRide, getRideStatus } from "@/src/services/api";
+import { useRouter } from "expo-router";
 import { useEffect, useState } from "react";
-import { Alert, Linking, Pressable, StyleSheet, Text, View } from "react-native";
+import { Alert, Linking, Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import RideFeedback from "./ride-feedback";
 
 interface RideStatus {
   ride_id: string;
@@ -16,10 +18,13 @@ interface RideStatus {
   vehicle_number?: string;
   current_location?: string;
   eta_minutes?: number;
+  pickup_otp?: string; // Added OTP
+  passenger_feedback?: any; // Added feedback tracking
 }
 
 export default function ActiveRide() {
   const { user } = useUser();
+  const router = useRouter();
   const [rideStatus, setRideStatus] = useState<RideStatus | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [rideId, setRideId] = useState<string | null>(null);
@@ -78,6 +83,8 @@ export default function ActiveRide() {
             vehicle_number: data.vehicle_number,
             current_location: data.current_location,
             eta_minutes: data.eta_minutes,
+            pickup_otp: data.pickup_otp, // Added
+            passenger_feedback: data.passenger_feedback, // Added
           });
         }
       } catch (error) {
@@ -87,25 +94,57 @@ export default function ActiveRide() {
 
     fetchRideStatus();
 
-    // Poll for updates every 3 seconds
-    const interval = setInterval(fetchRideStatus, 3000);
+    // Poll for updates every 10 seconds (reduced frequency to prevent excessive API calls)
+    const interval = setInterval(fetchRideStatus, 10000);
     return () => clearInterval(interval);
   }, [rideId]);
 
   const handleCallDriver = () => {
-    if (rideStatus?.driver_phone) {
-      Linking.openURL(`tel:${rideStatus.driver_phone}`);
-    } else {
+    if (!rideStatus?.driver_phone) {
       Alert.alert("Error", "Driver phone number not available");
+      return;
+    }
+
+    if (Platform.OS === "web") {
+      // On web, show an alert with the phone number and copy option
+      Alert.alert(
+        "Call Driver",
+        `Driver's phone number: ${rideStatus.driver_phone}`,
+        [
+          { text: "Close", style: "cancel" },
+          { 
+            text: "Copy Number", 
+            onPress: () => {
+              // Copy to clipboard - works on all platforms
+              const phoneNumber = rideStatus.driver_phone || "";
+              if (typeof navigator !== "undefined" && navigator.clipboard && navigator.clipboard.writeText) {
+                navigator.clipboard.writeText(phoneNumber).then(() => {
+                  Alert.alert("Copied!", "Phone number copied to clipboard");
+                }).catch(() => {
+                  Alert.alert("Info", `Phone: ${phoneNumber}`);
+                });
+              } else {
+                Alert.alert("Info", `Phone: ${phoneNumber}`);
+              }
+            } 
+          },
+        ]
+      );
+    } else {
+      // On native platforms, use tel: link
+      const phoneNumber = rideStatus.driver_phone || "";
+      Linking.openURL(`tel:${phoneNumber}`).catch(() => {
+        Alert.alert("Error", "Could not open phone dialer");
+      });
     }
   };
 
   const renderTimeline = () => {
     const steps = [
       { id: "assigned", icon: "🚕", label: "Driver Assigned", active: true },
-      { id: "on_way", icon: "🛣", label: "On the Way", active: rideStatus?.driver_progress === "ON_THE_WAY_TO_PICKUP" || rideStatus?.driver_progress === "ARRIVED_AT_PICKUP" || rideStatus?.driver_progress === "ON_THE_WAY_TO_DROPOFF" || rideStatus?.status === "in_progress" },
+      { id: "on_way", icon: "🛣", label: "On the Way", active: rideStatus?.driver_progress === "ON_THE_WAY_TO_PICKUP" || rideStatus?.driver_progress === "ARRIVED_AT_PICKUP" || rideStatus?.driver_progress === "ON_THE_WAY_TO_DROPOFF" || rideStatus?.status === "IN_PROGRESS" },
       { id: "arrived", icon: "📍", label: "Arrived", active: rideStatus?.driver_progress === "ARRIVED_AT_PICKUP" || rideStatus?.driver_progress === "ON_THE_WAY_TO_DROPOFF" },
-      { id: "completed", icon: "✅", label: "Completed", active: rideStatus?.status === "completed" },
+      { id: "completed", icon: "✅", label: "Completed", active: rideStatus?.status === "COMPLETED" },
     ];
 
     return (
@@ -130,6 +169,26 @@ export default function ActiveRide() {
   const handleCancelRide = () => {
     if (!rideId) return;
     
+    // Web-compatible confirmation
+    if (Platform.OS === "web") {
+      // @ts-ignore - window.confirm is available on web
+      if (window.confirm("Are you sure you want to cancel this ride?")) {
+        cancelRide(rideId).then((response: any) => {
+          if (response.success) {
+            alert("Your ride has been cancelled.");
+            setRideId(null);
+            setRideStatus(null);
+            router.back();
+          } else {
+            alert(response.error || "Failed to cancel ride");
+          }
+        }).catch((error: any) => {
+          alert("Failed to cancel ride: " + String(error));
+        });
+      }
+      return;
+    }
+
     Alert.alert(
       "Cancel Ride",
       "Are you sure you want to cancel this ride?",
@@ -139,9 +198,16 @@ export default function ActiveRide() {
           try {
             const response = await cancelRide(rideId);
             if (response.success) {
-              Alert.alert("Cancelled", "Your ride has been cancelled.");
-              setRideId(null);
-              setRideStatus(null);
+              Alert.alert("Cancelled", "Your ride has been cancelled.", [
+                { 
+                  text: "OK",
+                  onPress: () => {
+                    setRideId(null);
+                    setRideStatus(null);
+                    router.back();
+                  }
+                }
+              ]);
             } else {
               Alert.alert("Error", response.error || "Failed to cancel ride");
             }
@@ -167,6 +233,25 @@ export default function ActiveRide() {
         <Text style={styles.title}>No Active Ride</Text>
         <Text style={styles.subtitle}>You don't have any active rides at the moment</Text>
       </View>
+    );
+  }
+
+  const isCancelDisabled =
+    rideStatus.status === "IN_PROGRESS" ||
+    rideStatus.status === "COMPLETED" ||
+    rideStatus.status === "CANCELLED";
+
+  // Show feedback form if ride is completed but no feedback submitted
+  if (rideStatus.status === "COMPLETED" && !rideStatus.passenger_feedback) {
+    return (
+      <RideFeedback
+        rideId={rideStatus.ride_id}
+        driverName={rideStatus.driver_name || "the driver"}
+        onFeedbackSubmitted={() => {
+          // Refresh the ride status to show feedback was submitted
+          setRideStatus(prev => prev ? { ...prev, passenger_feedback: { submitted: true } } : null);
+        }}
+      />
     );
   }
 
@@ -216,6 +301,14 @@ export default function ActiveRide() {
             <Text style={styles.value}>{rideStatus.eta_minutes} minutes</Text>
           </View>
         )}
+        
+        {rideStatus.status === "DRIVER_ASSIGNED" && rideStatus.pickup_otp && (
+          <View style={[styles.driverInfo, { marginTop: 15, padding: 10, backgroundColor: "#FFF3E0", borderRadius: 8 }]}>
+            <Text style={[styles.label, { color: "#F57C00", fontSize: 16 }]}>Start Ride OTP:</Text>
+            <Text style={[styles.value, { color: "#E65100", fontSize: 24, fontWeight: "bold", letterSpacing: 4 }]}>{rideStatus.pickup_otp}</Text>
+            <Text style={{ fontSize: 12, color: "#666", marginTop: 5 }}>Share this code with driver to start ride</Text>
+          </View>
+        )}
       </View>
 
       <View style={styles.buttonContainer}>
@@ -232,9 +325,11 @@ export default function ActiveRide() {
         <Pressable
           style={({ pressed }) => [
             styles.cancelButton,
+            isCancelDisabled && styles.cancelButtonDisabled,
             pressed && styles.pressed,
           ]}
           onPress={handleCancelRide}
+          disabled={isCancelDisabled}
         >
           <Text style={styles.cancelButtonText}>Cancel Ride</Text>
         </Pressable>
@@ -336,6 +431,9 @@ const styles = StyleSheet.create({
     borderRadius: 8,
     flex: 1,
     marginLeft: 10,
+  },
+  cancelButtonDisabled: {
+    opacity: 0.5,
   },
   cancelButtonText: {
     color: "#FFF",

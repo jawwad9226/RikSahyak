@@ -1,7 +1,7 @@
 import LocationInput from "@/src/components/LocationInput";
 import { API_CONFIG } from "@/src/config/env";
 import { useUser } from "@/src/context/UserContext";
-import { createRideRequest, flushQueue, getRideStatus } from "@/src/services/api";
+import { createRideRequest, flushQueue, getPassengerCurrentRide, getRideStatus } from "@/src/services/api";
 import { getQueueStats, resetRetryCount } from "@/src/utils/asyncStorageQueue";
 import { colors } from "@/src/utils/colors";
 import { useFocusEffect, useRouter } from "expo-router";
@@ -38,8 +38,21 @@ export default function PassengerHome() {
       (async () => {
         const stats = await getQueueStats();
         setQueueCount(stats.total);
+        
+        // Check for existing active ride
+        if (user?.user_id) {
+          const res = await getPassengerCurrentRide(user.user_id);
+          if (res.success && res.data) {
+            const data: any = res.data;
+            if (data.ride_id && data.status) {
+              // Active ride found, navigate to active ride screen
+              router.push("/passenger/active-ride");
+              return;
+            }
+          }
+        }
       })();
-    }, [])
+    }, [user?.user_id, router])
   );
 
   // Navigate to active ride when queued ride is synced
@@ -208,7 +221,7 @@ export default function PassengerHome() {
       } catch (e) {
         // Silent: keep deterministic minimal behavior
       }
-    }, 2000);
+    }, 10000); // Poll every 10 seconds (reduced frequency to prevent excessive API calls)
 
     return () => clearInterval(interval);
   }, [rideId, rideStatus, router]);

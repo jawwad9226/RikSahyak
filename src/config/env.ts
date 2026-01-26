@@ -5,8 +5,8 @@
 
 // Auto-detect IP based on environment
 const getAPIUrl = () => {
-  // For development, use the configured IP
-  const API_IP = "192.168.2.5";
+  // For development on device, use host IP
+  const API_IP = "192.168.2.6";
   const API_PORT = "8000";
   return `http://${API_IP}:${API_PORT}`;
 };

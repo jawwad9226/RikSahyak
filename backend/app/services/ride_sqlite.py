@@ -447,3 +447,99 @@ def get_failed_sms_logs(limit: int = 50) -> List[Dict[str, Any]]:
         for row in conn.execute("SELECT * FROM failed_sms_logs ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall():
             logs.append(dict(row))
         return logs
+
+def get_all_users() -> Dict[str, Any]:
+    with get_db() as conn:
+        drivers = []
+        for row in conn.execute("SELECT data FROM drivers").fetchall():
+            d = json.loads(row["data"])
+            d["role"] = "driver"
+            drivers.append(d)
+            
+        passengers = {}
+        for row in conn.execute("SELECT data FROM rides").fetchall():
+            r = json.loads(row["data"])
+            pid = r.get("passenger_id")
+            if pid and pid not in passengers:
+                passengers[pid] = {
+                    "id": pid,
+                    "role": "passenger",
+                    "name": r.get("passenger_name", "Unknown"),
+                    "phone": r.get("passenger_phone", "Unknown"),
+                    "total_rides": 1,
+                    "last_ride": r.get("created_at", "")
+                }
+            elif pid in passengers:
+                passengers[pid]["total_rides"] += 1
+                
+        return {
+            "drivers": drivers,
+            "passengers": list(passengers.values()),
+            "total_drivers": len(drivers),
+            "total_passengers": len(passengers)
+        }
+
+def get_all_rides(status: str = None, limit: int = 50) -> Dict[str, Any]:
+    with get_db() as conn:
+        rides = []
+        if status:
+            rows = conn.execute("SELECT data FROM rides WHERE status = ? ORDER BY created_at DESC LIMIT ?", (status, limit)).fetchall()
+        else:
+            rows = conn.execute("SELECT data FROM rides ORDER BY created_at DESC LIMIT ?", (limit,)).fetchall()
+            
+        for row in rows:
+            rides.append(json.loads(row["data"]))
+            
+        return {
+            "rides": rides,
+            "total": len(rides),
+            "status_filter": status
+        }
+
+def get_analytics(days: int = 30) -> Dict[str, Any]:
+    with get_db() as conn:
+        end_date = datetime.utcnow()
+        start_date = end_date - timedelta(days=days)
+        start_iso = start_date.isoformat() + "Z"
+        
+        daily_stats = {}
+        revenue_by_hour = {}
+        rides_by_status = {"REQUESTED": 0, "DRIVER_ASSIGNED": 0, "IN_PROGRESS": 0, "COMPLETED": 0, "CANCELLED": 0}
+        
+        rows = conn.execute("SELECT data FROM rides WHERE created_at >= ?", (start_iso,)).fetchall()
+        
+        for row in rows:
+            r = json.loads(row["data"])
+            created_at = r.get("created_at", "")
+            if not created_at: continue
+            
+            try:
+                ride_date = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
+                date_key = ride_date.date().isoformat()
+                
+                if date_key not in daily_stats:
+                    daily_stats[date_key] = {"rides": 0, "revenue": 0}
+                
+                daily_stats[date_key]["rides"] += 1
+                status = r.get("status", "UNKNOWN")
+                if status in rides_by_status:
+                    rides_by_status[status] += 1
+                    
+                if status == "COMPLETED":
+                    fare = r.get("estimated_fare", 0)
+                    daily_stats[date_key]["revenue"] += fare
+                    hour = ride_date.hour
+                    if hour not in revenue_by_hour:
+                        revenue_by_hour[hour] = 0
+                    revenue_by_hour[hour] += fare
+            except Exception:
+                pass
+                
+        return {
+            "period_days": days,
+            "daily_stats": daily_stats,
+            "revenue_by_hour": revenue_by_hour,
+            "rides_by_status": rides_by_status,
+            "total_revenue_period": sum(day["revenue"] for day in daily_stats.values()),
+            "total_rides_period": sum(day["rides"] for day in daily_stats.values()),
+        }

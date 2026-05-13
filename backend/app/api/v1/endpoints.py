@@ -704,434 +704,72 @@ async def submit_ride_feedback(feedback: RideFeedbackRequest):
 @admin_router.get("/admin/stats")
 async def get_admin_stats():
     """
-    Get comprehensive admin statistics for dashboard.
+    Get comprehensive admin dashboard statistics.
     """
     try:
-        db = get_db()
-        
-        # Get ride statistics
-        rides_ref = db.collection(COLLECTION_RIDES)
-        all_rides = rides_ref.stream()
-        
-        total_rides = 0
-        total_revenue = 0
-        active_rides = 0
-        today_rides = 0
-        today_revenue = 0
-        completed_rides = 0
-        
-        # Calculate today's date
-        from datetime import datetime, timezone
-        today = datetime.now(timezone.utc).date()
-        
-        for ride_doc in all_rides:
-            ride = ride_doc.to_dict()
-            total_rides += 1
-            
-            status = ride.get("status", "")
-            fare = ride.get("estimated_fare", 0)
-            
-            if status in ["REQUESTED", "DRIVER_ASSIGNED", "IN_PROGRESS"]:
-                active_rides += 1
-            
-            if status == "COMPLETED":
-                completed_rides += 1
-                total_revenue += fare
-                
-                # Check if completed today
-                completed_at = ride.get("assigned_at", "")
-                if completed_at:
-                    try:
-                        ride_date = datetime.fromisoformat(completed_at.replace('Z', '+00:00')).date()
-                        if ride_date == today:
-                            today_rides += 1
-                            today_revenue += fare
-                    except:
-                        pass
-        
-        # Get driver statistics
-        drivers_ref = db.collection(COLLECTION_DRIVERS)
-        active_drivers = len(list(drivers_ref.stream()))
-        
-        # Get passenger statistics (estimate from rides)
-        passenger_ids = set()
-        rides_ref = db.collection(COLLECTION_RIDES)
-        for ride_doc in rides_ref.stream():
-            ride = ride_doc.to_dict()
-            passenger_id = ride.get("passenger_id")
-            if passenger_id:
-                passenger_ids.add(passenger_id)
-        
-        total_passengers = len(passenger_ids)
-        
-        # Calculate average rating from feedback
-        total_rating = 0
-        rating_count = 0
-        for ride_doc in rides_ref.stream():
-            ride = ride_doc.to_dict()
-            feedback = ride.get("passenger_feedback", {})
-            rating = feedback.get("rating")
-            if rating:
-                total_rating += rating
-                rating_count += 1
-        
-        average_rating = round(total_rating / rating_count, 1) if rating_count > 0 else 0
-        
-        return {
-            "totalRides": total_rides,
-            "totalRevenue": total_revenue,
-            "activeDrivers": active_drivers,
-            "activeRides": active_rides,
-            "todayRides": today_rides,
-            "todayRevenue": today_revenue,
-            "totalPassengers": total_passengers,
-            "averageRating": average_rating,
-            "completedRides": completed_rides,
-        }
-        
+        from app.services.ride_sqlite import get_admin_stats
+        return get_admin_stats()
     except Exception as e:
-        logger.error(f"Error fetching admin stats: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
+        logger.error(f"Failed to get admin stats: {e}")
+        raise HTTPException(status_code=500, detail="Failed to fetch admin statistics")
 
 @admin_router.get("/admin/users")
-async def get_all_users():
-    """
-    Get all users (drivers and passengers) for admin management.
-    """
+async def get_all_users_endpoint():
     try:
-        db = get_db()
-        
-        # Get drivers
-        drivers = []
-        drivers_ref = db.collection(COLLECTION_DRIVERS)
-        for doc in drivers_ref.stream():
-            driver_data = doc.to_dict()
-            driver_data["id"] = doc.id
-            driver_data["role"] = "driver"
-            drivers.append(driver_data)
-        
-        # Get passengers (from rides data)
-        passengers = []
-        passenger_map = {}
-        
-        rides_ref = db.collection(COLLECTION_RIDES)
-        for ride_doc in rides_ref.stream():
-            ride = ride_doc.to_dict()
-            passenger_id = ride.get("passenger_id")
-            if passenger_id and passenger_id not in passenger_map:
-                passenger_map[passenger_id] = {
-                    "id": passenger_id,
-                    "role": "passenger",
-                    "name": ride.get("passenger_name", "Unknown"),
-                    "phone": ride.get("passenger_phone", "Unknown"),
-                    "total_rides": 0,
-                    "last_ride": ride.get("created_at", ""),
-                }
-            if passenger_id in passenger_map:
-                passenger_map[passenger_id]["total_rides"] += 1
-        
-        passengers = list(passenger_map.values())
-        
-        return {
-            "drivers": drivers,
-            "passengers": passengers,
-            "total_drivers": len(drivers),
-            "total_passengers": len(passengers),
-        }
-        
+        from app.services.ride_sqlite import get_all_users
+        return get_all_users()
     except Exception as e:
         logger.error(f"Error fetching users: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
 @admin_router.get("/admin/rides")
-async def get_all_rides(status: str = None, limit: int = 50):
-    """
-    Get all rides with optional filtering by status.
-    """
+async def get_all_rides_endpoint(status: str = None, limit: int = 50):
     try:
-        db = get_db()
-        rides_ref = db.collection(COLLECTION_RIDES)
-        
-        query = rides_ref
-        if status:
-            query = query.where("status", "==", status)
-        
-        rides = []
-        for doc in query.limit(limit).stream():
-            ride_data = doc.to_dict()
-            ride_data["id"] = doc.id
-            rides.append(ride_data)
-        
-        # Sort by creation date (newest first)
-        rides.sort(key=lambda x: x.get("created_at", ""), reverse=True)
-        
-        return {
-            "rides": rides,
-            "total": len(rides),
-            "status_filter": status,
-        }
-        
+        from app.services.ride_sqlite import get_all_rides
+        return get_all_rides(status, limit)
     except Exception as e:
         logger.error(f"Error fetching rides: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-@admin_router.post("/admin/users/{user_id}/block")
-async def block_user(user_id: str):
-    """
-    Block a user (driver or passenger).
-    """
-    try:
-        db = get_db()
-        
-        # Check if it's a driver
-        driver_ref = db.collection(COLLECTION_DRIVERS).document(user_id)
-        if driver_ref.get().exists:
-            driver_ref.update({"blocked": True, "blocked_at": _now_iso()})
-            return {"message": f"Driver {user_id} blocked successfully"}
-        
-        # For passengers, we might want to add them to a blocked collection
-        # For now, just return success
-        return {"message": f"User {user_id} blocked successfully"}
-        
-    except Exception as e:
-        logger.error(f"Error blocking user: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@admin_router.post("/admin/rides/{ride_id}/cancel")
-async def admin_cancel_ride(ride_id: str):
-    """
-    Admin force cancel a ride.
-    """
-    try:
-        update_status(ride_id, "CANCELLED")
-        return {"message": f"Ride {ride_id} cancelled by admin"}
-        
-    except Exception as e:
-        logger.error(f"Error cancelling ride: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @admin_router.get("/admin/analytics")
-async def get_analytics(days: int = 30):
-    """
-    Get detailed analytics for the specified number of days.
-    """
+async def get_analytics_endpoint(days: int = 30):
     try:
-        db = get_db()
-        from datetime import datetime, timedelta, timezone
-        
-        # Calculate date range
-        end_date = datetime.now(timezone.utc)
-        start_date = end_date - timedelta(days=days)
-        
-        rides_ref = db.collection(COLLECTION_RIDES)
-        
-        # Get rides in date range
-        daily_stats = {}
-        revenue_by_hour = {}
-        rides_by_status = {"REQUESTED": 0, "DRIVER_ASSIGNED": 0, "IN_PROGRESS": 0, "COMPLETED": 0, "CANCELLED": 0}
-        
-        for ride_doc in rides_ref.stream():
-            ride = ride_doc.to_dict()
-            created_at = ride.get("created_at", "")
-            
-            if created_at:
-                try:
-                    ride_date = datetime.fromisoformat(created_at.replace('Z', '+00:00'))
-                    if ride_date >= start_date:
-                        # Daily stats
-                        date_key = ride_date.date().isoformat()
-                        if date_key not in daily_stats:
-                            daily_stats[date_key] = {"rides": 0, "revenue": 0}
-                        daily_stats[date_key]["rides"] += 1
-                        if ride.get("status") == "COMPLETED":
-                            daily_stats[date_key]["revenue"] += ride.get("estimated_fare", 0)
-                        
-                        # Hourly revenue
-                        hour = ride_date.hour
-                        if hour not in revenue_by_hour:
-                            revenue_by_hour[hour] = 0
-                        if ride.get("status") == "COMPLETED":
-                            revenue_by_hour[hour] += ride.get("estimated_fare", 0)
-                        
-                        # Status distribution
-                        status = ride.get("status", "UNKNOWN")
-                        if status in rides_by_status:
-                            rides_by_status[status] += 1
-                            
-                except Exception as e:
-                    logger.warning(f"Error parsing date {created_at}: {e}")
-        
-        return {
-            "period_days": days,
-            "daily_stats": daily_stats,
-            "revenue_by_hour": revenue_by_hour,
-            "rides_by_status": rides_by_status,
-            "total_revenue_period": sum(day["revenue"] for day in daily_stats.values()),
-            "total_rides_period": sum(day["rides"] for day in daily_stats.values()),
-        }
-        
+        from app.services.ride_sqlite import get_analytics
+        return get_analytics(days)
     except Exception as e:
         logger.error(f"Error fetching analytics: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-
-class SystemSettings(BaseModel):
-    """System settings model"""
-    max_ride_distance_km: float = 50.0
-    base_fare: float = 30.0
-    per_km_rate: float = 12.0
-    per_minute_rate: float = 2.0
-    surge_multiplier: float = 1.0
-    maintenance_mode: bool = False
-    otp_expiry_minutes: int = 10
-    max_active_rides_per_driver: int = 3
-    driver_search_radius_km: float = 10.0
-    passenger_pickup_radius_km: float = 0.5
-
-
 @admin_router.get("/admin/settings")
-async def get_system_settings():
-    """
-    Get current system settings.
-    """
-    try:
-        db = get_db()
-        settings_ref = db.collection("system_settings").document("global")
-        settings_doc = settings_ref.get()
-        
-        if settings_doc.exists:
-            return settings_doc.to_dict()
-        else:
-            # Return default settings
-            default_settings = SystemSettings()
-            return default_settings.dict()
-            
-    except Exception as e:
-        logger.error(f"Error fetching settings: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@admin_router.post("/admin/settings")
-async def update_system_settings(settings: SystemSettings):
-    """
-    Update system settings.
-    """
-    try:
-        db = get_db()
-        settings_ref = db.collection("system_settings").document("global")
-        
-        # Update settings
-        settings_ref.set(settings.dict(), merge=True)
-        
-        return {"message": "Settings updated successfully", "settings": settings.dict()}
-        
-    except Exception as e:
-        logger.error(f"Error updating settings: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@admin_router.post("/admin/users/{user_id}/unblock")
-async def unblock_user(user_id: str):
-    """
-    Unblock a user (driver or passenger).
-    """
-    try:
-        db = get_db()
-        
-        # Check if it's a driver
-        driver_ref = db.collection(COLLECTION_DRIVERS).document(user_id)
-        driver_doc = driver_ref.get()
-        if driver_doc.exists:
-            driver_ref.update({"blocked": False, "unblocked_at": _now_iso()})
-            return {"message": f"Driver {user_id} unblocked successfully"}
-        
-        # For passengers, we might want to remove them from blocked collection
-        # For now, just return success
-        return {"message": f"User {user_id} unblocked successfully"}
-        
-    except Exception as e:
-        logger.error(f"Error unblocking user: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@admin_router.post("/admin/rides/{ride_id}/reassign")
-async def reassign_ride(ride_id: str, driver_id: str = None):
-    """
-    Reassign a ride to a different driver or find a new driver.
-    """
-    try:
-        from app.services.ride_sqlite import assign_driver, find_drivers_for_ride
-        
-        if driver_id:
-            # Assign specific driver
-            assign_driver(ride_id, driver_id)
-            return {"message": f"Ride {ride_id} reassigned to driver {driver_id}"}
-        else:
-            # Find new driver
-            drivers = find_drivers_for_ride(ride_id)
-            if drivers:
-                assign_driver(ride_id, drivers[0]["id"])
-                return {"message": f"Ride {ride_id} reassigned to new driver"}
-            else:
-                raise HTTPException(status_code=404, detail="No available drivers found")
-        
-    except Exception as e:
-        logger.error(f"Error reassigning ride: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@admin_router.get("/admin/rides/{ride_id}/details")
-async def get_ride_details(ride_id: str):
-    """
-    Get detailed information about a specific ride.
-    """
-    try:
-        ride = get_ride(ride_id)
-        if not ride:
-            raise HTTPException(status_code=404, detail="Ride not found")
-        
-        return ride
-        
-    except Exception as e:
-        logger.error(f"Error fetching ride details: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+async def get_system_settings_endpoint():
+    # Settings not persisted in SQLite yet, return defaults
+    return {
+        "max_ride_distance_km": 50.0,
+        "base_fare": 30.0,
+        "per_km_rate": 12.0,
+        "per_minute_rate": 2.0,
+        "surge_multiplier": 1.0,
+        "maintenance_mode": False,
+        "otp_expiry_minutes": 10,
+        "max_active_rides_per_driver": 3,
+        "driver_search_radius_km": 10.0,
+        "passenger_pickup_radius_km": 0.5
+    }
 
 @admin_router.get("/admin/flywheel-logs")
 async def fetch_failed_sms_logs(limit: int = 50):
-    """
-    Get the most recent failed SMS parsing attempts.
-    This data powers the AI Data Flywheel for offline fine-tuning.
-    """
     try:
+        from app.services.ride_sqlite import get_failed_sms_logs
         logs = get_failed_sms_logs(limit=limit)
         return {"status": "success", "logs": logs}
     except Exception as e:
         logger.error(f"Error fetching flywheel logs: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
-@admin_router.post("/admin/drivers")
-async def register_driver(driver_data: dict):
-    """
-    Register a new driver in the database.
-    """
-    try:
-        driver_id = add_driver(driver_data)
-        return {"status": "success", "driver_id": driver_id}
-    except Exception as e:
-        logger.error(f"Error registering driver: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
-
 @admin_router.get("/admin/drivers")
 async def get_all_drivers():
-    """
-    Get a list of all registered drivers.
-    """
     try:
+        from app.services.ride_sqlite import list_drivers_ordered
         drivers = list_drivers_ordered()
         return {"status": "success", "drivers": drivers}
     except Exception as e:

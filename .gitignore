@@ -41,3 +41,36 @@ app-example
 # generated native folders
 /ios
 /android
+
+# =========================
+# RikSahyak Backend Ignores
+# =========================
+
+# Environment variables
+.env
+backend/.env
+
+# Python compilation files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual Environments
+venv/
+.venv/
+env/
+
+# SQLite Databases & Local Data
+backend/data/*.db
+backend/data/*.sqlite
+backend/data/*.json
+
+# Logs and PM2
+nohup.out
+backend/nohup.out
+*.log
+.pm2/
+
+# Secrets & Credentials
+firebase-credentials.json
+backend/firebase-credentials.json

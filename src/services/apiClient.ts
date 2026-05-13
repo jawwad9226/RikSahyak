@@ -79,6 +79,7 @@ export async function apiGet<T = any>(endpoint: string): Promise<ApiResponse<T>>
       method: "GET",
       headers: {
         "Content-Type": "application/json",
+        "x-admin-token": API_CONFIG.ADMIN_SECRET_KEY,
       },
     });
 
@@ -117,6 +118,7 @@ export async function apiPost<T = any>(
       method: "POST",
       headers: {
         "Content-Type": "application/json",
+        "x-admin-token": API_CONFIG.ADMIN_SECRET_KEY,
       },
       body: JSON.stringify(body || {}),
     });
@@ -156,6 +158,7 @@ export async function apiPut<T = any>(
       method: "PUT",
       headers: {
         "Content-Type": "application/json",
+        "x-admin-token": API_CONFIG.ADMIN_SECRET_KEY,
       },
       body: JSON.stringify(body || {}),
     });
@@ -192,6 +195,7 @@ export async function apiDelete<T = any>(endpoint: string): Promise<ApiResponse<
       method: "DELETE",
       headers: {
         "Content-Type": "application/json",
+        "x-admin-token": API_CONFIG.ADMIN_SECRET_KEY,
       },
     });
 

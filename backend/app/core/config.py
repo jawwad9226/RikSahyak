@@ -16,6 +16,7 @@ MAPPLS_CLIENT_SECRET = os.getenv("MAPPLS_CLIENT_SECRET", "")
 # API Config
 API_PREFIX = "/api/v1"
 API_VERSION = "1.0.0"
+ADMIN_SECRET_KEY = os.getenv("ADMIN_SECRET_KEY", "malkapur_admin_secret_123")
 
 # Server Config
 HOST = os.getenv("HOST", "0.0.0.0")

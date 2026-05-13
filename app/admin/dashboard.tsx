@@ -126,6 +126,10 @@ export default function AdminDashboard() {
           <Text style={styles.actionTitle}>System Settings</Text>
           <Text style={styles.actionDesc}>Configure app settings and pricing</Text>
         </Pressable>
+        <Pressable style={styles.actionCard} onPress={() => router.push("/admin/system" as any)}>
+          <Text style={styles.actionTitle}>Machine Health</Text>
+          <Text style={styles.actionDesc}>Monitor server battery, temp & logs</Text>
+        </Pressable>
       </View>
     </ScrollView>
   );

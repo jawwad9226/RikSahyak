@@ -6,7 +6,7 @@
 // Auto-detect IP based on environment
 const getAPIUrl = () => {
   // For development on device, use host IP
-  const API_IP = "192.168.2.6";
+  const API_IP = "100.65.95.4";
   const API_PORT = "8000";
   return `http://${API_IP}:${API_PORT}`;
 };
@@ -31,13 +31,16 @@ export const API_CONFIG = {
   RETRY_DELAY: 1000, // Base delay in ms, will multiply with exponential backoff
   
   // WebSocket settings
-  WEBSOCKET_URL: "ws://192.168.2.5:8000/api/v1/ws",
+  WEBSOCKET_URL: "ws://100.65.95.4:8000/api/v1/ws",
   WEBSOCKET_RECONNECT_INTERVAL: 5000,
   
   // Polling intervals (in ms)
   RIDE_STATUS_POLL_INTERVAL: 3000,
   DRIVER_RIDES_POLL_INTERVAL: 5000,
   ADMIN_STATS_POLL_INTERVAL: 10000,
+
+  // Security
+  ADMIN_SECRET_KEY: "malkapur_admin_secret_123",
 };
 
 /**

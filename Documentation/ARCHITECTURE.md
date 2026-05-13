@@ -34,45 +34,45 @@
               │                             │
               │         INTERNET/WiFi      │
               │                             │
-┌─────────────┼─────────────────────────────┼────────────────────┐
+┌─────────────┼─────────────────────────────┼─────────────────────┐
 │             │                             │                     │
 │   ┌─────────▼──────────────────────────────▼─────────┐          │
-│   │        REACT NATIVE FRONTEND LAYER                │          │
-│   │                                                    │          │
-│   │  • Screens (Passenger, Driver, Admin)             │          │
-│   │  • Components (Button, Input, Card)               │          │
-│   │  • Services (API, Firebase)                       │          │
-│   │  • Utils (Colors, Constants)                      │          │
-│   └──────────────────┬──────────────────────────────────┘        │
-│                      │                                           │
+│   │        REACT NATIVE FRONTEND LAYER               │          │
+│   │                                                  │          │
+│   │  • Screens (Passenger, Driver, Admin)            │          │
+│   │  • Components (Button, Input, Card)              │          │
+│   │  • Services (API, Firebase)                      │          │
+│   │  • Utils (Colors, Constants)                     │          │
+│   └──────────────────┬───────────────────────────────┘          │
+│                      │                                          │
 │                      │ HTTP/HTTPS                               │
-│                      │                                           │
-│   ┌──────────────────▼──────────────────────────────────┐        │
-│   │    FASTAPI BACKEND (Python)                        │        │
-│   │    http://YOUR_IP:8000                             │        │
-│   ├──────────────────────────────────────────────────────┤        │
-│   │                                                      │        │
-│   │  API Routes (/api/v1/)                             │        │
-│   │  ┌──────────────────────────────────────┐          │        │
-│   │  │ POST /rides/calculate-fare          │          │        │
-│   │  │ POST /rides/request                 │          │        │
-│   │  │ POST /rides/accept                  │          │        │
-│   │  │ GET /rides/status/{id}              │          │        │
-│   │  │ WS /ws/rides/{user_id}              │          │        │
-│   │  └──────────────────────────────────────┘          │        │
-│   │                                                      │        │
-│   │  Services Layer                                     │        │
-│   │  ┌──────────────────────────────────────┐          │        │
-│   │  │ Fare Calculator (Haversine)          │          │        │
-│   │  │ Matching Engine (Driver Find)        │          │        │
-│   │  │ Firebase Service (DB Sync)           │          │        │
-│   │  └──────────────────────────────────────┘          │        │
-│   │                                                      │        │
-│   │  Core Config & Schemas                             │        │
-│   │  • Malkapur locations (coords)                      │        │
-│   │  • Pydantic validation models                       │        │
-│   │  • Fare formula (₹20 + ₹15/km)                      │        │
-│   │                                                      │        │
+│                      │                                          │
+│   ┌──────────────────▼──────────────────────────────────┐       │
+│   │    FASTAPI BACKEND (Python)                         │       │
+│   │    http://YOUR_IP:8000                              │       │
+│   ├─────────────────────────────────────────────────────┤       │
+│   │                                                     │       │
+│   │  API Routes (/api/v1/)                              │       │
+│   │  ┌──────────────────────────────────────┐           │       │
+│   │  │ POST /rides/calculate-fare           │           │       │
+│   │  │ POST /rides/request                  │           │       │
+│   │  │ POST /rides/accept                   │           │       │
+│   │  │ GET /rides/status/{id}               │           │       │
+│   │  │ WS /ws/rides/{user_id}               │           │       │
+│   │  └──────────────────────────────────────┘           │       │
+│   │                                                     │       │
+│   │  Services Layer                                     │       │
+│   │  ┌──────────────────────────────────────┐           │       │
+│   │  │ Fare Calculator (Haversine)          │           │       │
+│   │  │ Matching Engine (Driver Find)        │           │       │
+│   │  │ Firebase Service (DB Sync)           │           │       │
+│   │  └──────────────────────────────────────┘           │       │
+│   │                                                     │       │
+│   │  Core Config & Schemas                              │       │
+│   │  • Malkapur locations (coords)                      │       │
+│   │  • Pydantic validation models                       │       │
+│   │  • Fare formula (₹20 + ₹15/km)                      │       │
+│   │                                                     │        │
 │   └──────────┬─────────────────────────────────────────┘        │
 │              │                                                   │
 │              │ Firebase Admin SDK                               │

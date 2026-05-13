@@ -1,7 +1,7 @@
 import json
 import urllib.request
 
-BASE = "http://127.0.0.1:8000/api/v1/rides"
+BASE = "http://100.65.95.4:8000/api/v1/rides"
 
 def post(path, payload):
     data = json.dumps(payload).encode("utf-8")
@@ -21,6 +21,8 @@ def main():
     print("1) Creating ride request...")
     ride_req = {
         "passenger_id": "PAS-001",
+        "passenger_name": "Test User",
+        "passenger_phone": "+919096997459",
         "pickup_location": "Station",
         "dropoff_location": "Hospital",
         "pickup_coords": {"latitude": 20.8845, "longitude": 76.2010},

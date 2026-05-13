@@ -58,7 +58,7 @@ class RideDoc(BaseModel):
     completed_at: Optional[str] = None
 
     def to_dict(self) -> dict:
-        d = self.model_dump()
+        d = self.dict()
         # Pydantic enums to value strings for Firestore
         d["status"] = self.status.value if isinstance(self.status, Enum) else self.status
         return d

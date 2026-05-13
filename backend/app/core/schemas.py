@@ -47,6 +47,8 @@ class FareCalculationResponse(BaseModel):
 
 class RideRequest(BaseModel):
     passenger_id: str
+    passenger_name: Optional[str] = None
+    passenger_phone: Optional[str] = None
     pickup_location: str
     dropoff_location: str
     pickup_coords: LocationCoord

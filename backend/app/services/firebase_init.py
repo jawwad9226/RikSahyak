@@ -1,54 +1,120 @@
-"""
-Firebase connector for FastAPI backend.
-Uses Firestore Emulator when available or in dev mode; otherwise falls back to cloud if credentials provided.
-"""
+import sqlite3
+import json
 import os
-from pathlib import Path
-from dotenv import load_dotenv
 
-# Load .env if it exists
-env_file = Path(__file__).resolve().parents[2] / ".env"
-if env_file.exists():
-    load_dotenv(env_file)
+DB_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "data")
+os.makedirs(DB_DIR, exist_ok=True)
+DB_PATH = os.path.join(DB_DIR, "riksahyak.db")
 
-# Default to emulator in development if not explicitly set
-if not os.getenv("FIRESTORE_EMULATOR_HOST"):
-    # Check if cloud credentials are available
-    creds_path = os.getenv("FIREBASE_CREDENTIALS_PATH", "./firebase-credentials.json")
-    if not os.path.exists(creds_path):
-        # No cloud credentials; default to emulator for dev
-        os.environ["FIRESTORE_EMULATOR_HOST"] = "localhost:8080"
+class MockDocumentReference:
+    def __init__(self, collection_name: str, doc_id: str):
+        self.collection_name = collection_name
+        self.doc_id = doc_id
+        
+    def _get_table(self):
+        if self.collection_name == "rides": return "rides", "id"
+        if self.collection_name == "drivers": return "drivers", "driver_id"
+        if self.collection_name == "users": return "users", "user_id"
+        return "counters", "name" # Fallback for settings
+        
+    def get(self):
+        table, id_col = self._get_table()
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            if table == "counters":
+                res = conn.execute("SELECT data FROM settings WHERE id = ?", (self.doc_id,)).fetchone()
+            else:
+                res = conn.execute(f"SELECT data FROM {table} WHERE {id_col} = ?", (self.doc_id,)).fetchone()
+            
+            if res:
+                return MockDocumentSnapshot(True, self.doc_id, json.loads(res["data"]))
+            return MockDocumentSnapshot(False, self.doc_id, {})
+        except Exception:
+            return MockDocumentSnapshot(False, self.doc_id, {})
+        finally:
+            conn.close()
+            
+    def update(self, data: dict):
+        snap = self.get()
+        if snap.exists:
+            merged = snap.to_dict()
+            merged.update(data)
+            self.set(merged)
+            
+    def set(self, data: dict, merge: bool = False):
+        table, id_col = self._get_table()
+        conn = sqlite3.connect(DB_PATH)
+        try:
+            if table == "counters":
+                conn.execute("CREATE TABLE IF NOT EXISTS settings (id TEXT PRIMARY KEY, data JSON)")
+                if merge:
+                    existing = self.get()
+                    if existing.exists:
+                        merged = existing.to_dict()
+                        merged.update(data)
+                        data = merged
+                conn.execute("INSERT OR REPLACE INTO settings (id, data) VALUES (?, ?)", (self.doc_id, json.dumps(data)))
+            else:
+                # We only implement update for rides/drivers
+                pass
+            conn.commit()
+        finally:
+            conn.close()
 
-# Prefer direct google-cloud-firestore client for emulator to avoid ADC
-if os.getenv("FIRESTORE_EMULATOR_HOST"):
-    from google.cloud import firestore as gc_firestore
-    from google.auth.credentials import AnonymousCredentials
+class MockDocumentSnapshot:
+    def __init__(self, exists: bool, doc_id: str, data: dict):
+        self.exists = exists
+        self.id = doc_id
+        self._data = data
+    def to_dict(self):
+        return self._data
 
-    PROJECT_ID = os.getenv("FIREBASE_PROJECT_ID", "riksahyak-demo")
-    db = gc_firestore.Client(project=PROJECT_ID, credentials=AnonymousCredentials())
-    print(f"✅ Firestore: Using emulator at {os.getenv('FIRESTORE_EMULATOR_HOST')} (project={PROJECT_ID})")
+class MockQuery:
+    def __init__(self, collection_name: str, filters: list = None):
+        self.collection_name = collection_name
+        self.filters = filters or []
+        
+    def where(self, field, op, value):
+        self.filters.append((field, op, value))
+        return self
+        
+    def stream(self):
+        table = self.collection_name
+        if table not in ["rides", "drivers", "users"]:
+            return []
+            
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            res = conn.execute(f"SELECT data FROM {table}").fetchall()
+            docs = []
+            for row in res:
+                data = json.loads(row["data"])
+                # Apply filters manually
+                match = True
+                for f, op, v in self.filters:
+                    if op == "==" and data.get(f) != v:
+                        match = False
+                        break
+                if match:
+                    docs.append(MockDocumentSnapshot(True, data.get("id", ""), data))
+            return docs
+        except Exception:
+            return []
+        finally:
+            conn.close()
 
-else:
-    # Cloud mode via firebase_admin (requires service account)
-    import firebase_admin
-    from firebase_admin import credentials, firestore
+class MockCollectionReference(MockQuery):
+    def document(self, doc_id: str):
+        return MockDocumentReference(self.collection_name, doc_id)
 
-    try:
-        firebase_admin.get_app()
-    except ValueError:
-        creds_path = os.getenv("FIREBASE_CREDENTIALS_PATH", "./firebase-credentials.json")
-        if not os.path.exists(creds_path):
-            raise RuntimeError(
-                "FIREBASE_CREDENTIALS_PATH not found and FIRESTORE_EMULATOR_HOST not set. "
-                "Please provide credentials or set FIRESTORE_EMULATOR_HOST."
-            )
-        cred = credentials.Certificate(creds_path)
-        firebase_admin.initialize_app(cred)
-        print("✅ Firebase: Connected to cloud Firestore")
-
-    db = firestore.client()
-
+class MockFirestore:
+    def collection(self, name: str):
+        return MockCollectionReference(name)
 
 def get_db():
-    """Return Firestore client"""
-    return db
+    return MockFirestore()
+
+def initialize_firebase():
+    pass

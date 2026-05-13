@@ -4,6 +4,7 @@ from datetime import datetime
 import random
 
 from app.services.firebase_init import get_db
+from google.cloud.firestore_v1.base_query import FieldFilter
 from app.core.firestore_models import (
     COLLECTION_RIDES,
     COLLECTION_DRIVERS,
@@ -70,9 +71,9 @@ def _has_driver_active_ride(driver_id: str) -> bool:
     
     for status in ["DRIVER_ASSIGNED", "IN_PROGRESS"]:
         query = db.collection(COLLECTION_RIDES).where(
-            "driver_id", "==", driver_id
+            filter=FieldFilter("driver_id", "==", driver_id)
         ).where(
-            "status", "==", status
+            filter=FieldFilter("status", "==", status)
         ).limit(1)
         for _ in query.stream():
             return True
@@ -406,7 +407,7 @@ def list_requested_rides() -> List[Dict[str, Any]]:
     """Get all rides with status=REQUESTED, ordered by created_at."""
     db = get_db()
     query = db.collection(COLLECTION_RIDES).where(
-        "status", "==", "REQUESTED"
+        filter=FieldFilter("status", "==", "REQUESTED")
     ).order_by("created_at")
     rides = []
     for doc in query.stream():
@@ -421,9 +422,9 @@ def get_driver_assigned_ride(driver_id: str) -> Optional[Dict[str, Any]]:
     db = get_db()
     # Check DRIVER_ASSIGNED first
     query = db.collection(COLLECTION_RIDES).where(
-        "driver_id", "==", driver_id
+        filter=FieldFilter("driver_id", "==", driver_id)
     ).where(
-        "status", "==", "DRIVER_ASSIGNED"
+        filter=FieldFilter("status", "==", "DRIVER_ASSIGNED")
     ).limit(1)
     for doc in query.stream():
         ride_data = doc.to_dict()
@@ -432,9 +433,9 @@ def get_driver_assigned_ride(driver_id: str) -> Optional[Dict[str, Any]]:
     
     # Check IN_PROGRESS
     query = db.collection(COLLECTION_RIDES).where(
-        "driver_id", "==", driver_id
+        filter=FieldFilter("driver_id", "==", driver_id)
     ).where(
-        "status", "==", "IN_PROGRESS"
+        filter=FieldFilter("status", "==", "IN_PROGRESS")
     ).limit(1)
     for doc in query.stream():
         ride_data = doc.to_dict()
@@ -451,9 +452,9 @@ def get_passenger_current_ride(passenger_id: str) -> Optional[Dict[str, Any]]:
     
     for status in statuses:
         query = db.collection(COLLECTION_RIDES).where(
-            "passenger_id", "==", passenger_id
+            filter=FieldFilter("passenger_id", "==", passenger_id)
         ).where(
-            "status", "==", status
+            filter=FieldFilter("status", "==", status)
         ).limit(1)
         for doc in query.stream():
             ride_data = doc.to_dict()
@@ -504,7 +505,7 @@ def get_admin_stats() -> Dict[str, Any]:
     
     # Get active drivers (drivers with rides in progress or assigned)
     active_drivers = set()
-    active_rides_query = rides_ref.where("status", "in", ["DRIVER_ASSIGNED", "IN_PROGRESS"]).stream()
+    active_rides_query = rides_ref.where(filter=FieldFilter("status", "in", ["DRIVER_ASSIGNED", "IN_PROGRESS"])).stream()
     for ride_doc in active_rides_query:
         ride = ride_doc.to_dict()
         driver_id = ride.get("driver_id")

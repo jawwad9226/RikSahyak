@@ -1,4 +1,4 @@
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Depends
 from pydantic import BaseModel
 import logging
 import random
@@ -21,7 +21,8 @@ from app.services.nominatim_service import smart_search_async  # Import ASYNC ve
 from app.services.location_ai import log_search_interaction, get_ai_statistics
 from app.services.matching_engine import find_nearby_drivers
 from app.core.locations_db import get_all_locations, increment_search_count
-from app.services.ride_firestore import (
+from app.services.sms_service import send_sms_async
+from app.services.ride_sqlite import (
     create_ride,
     get_ride,
     set_candidate_drivers,
@@ -32,6 +33,9 @@ from app.services.ride_firestore import (
     list_requested_rides,
     get_driver_assigned_ride,
     get_passenger_current_ride,
+    get_failed_sms_logs,
+    add_driver,
+    list_drivers_ordered,
     RideConflictError,
     RideStateError,
     _now_iso,
@@ -39,9 +43,11 @@ from app.services.ride_firestore import (
 from app.services.firebase_init import get_db
 from app.core.firestore_models import COLLECTION_RIDES
 
+from app.api.deps import verify_admin_token
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/rides", tags=["rides"])
-admin_router = APIRouter(tags=["admin"])
+admin_router = APIRouter(tags=["admin"], dependencies=[Depends(verify_admin_token)])
 operator_router = APIRouter(prefix="/operator", tags=["operator"])
 
 
@@ -209,6 +215,8 @@ async def create_ride_request(ride: RideRequest):
     record = {
         "status": RIDE_REQUESTED,
         "passenger_id": ride.passenger_id,
+        "passenger_name": ride.passenger_name,
+        "passenger_phone": ride.passenger_phone,
         "pickup_location": ride.pickup_location,
         "dropoff_location": ride.dropoff_location,
         "pickup_coords": ride.pickup_coords.dict(),
@@ -262,6 +270,24 @@ async def accept_ride(acceptance: RideAccept):
     
     try:
         assign_driver(acceptance.ride_id, acceptance.driver_id)
+        
+        # Fetch the updated ride to get phone numbers and OTP
+        updated_ride = get_ride(acceptance.ride_id)
+        
+        if updated_ride:
+            passenger_phone = updated_ride.get("passenger_phone")
+            
+            # Send SMS to passenger if they provided a phone number
+            # (Fallback to a hardcoded test number for local testing if needed, but we'll respect the payload)
+            if passenger_phone:
+                otp = updated_ride.get("pickup_otp", "1234")
+                driver_name = updated_ride.get("driver_name", "Your driver")
+                veh_num = updated_ride.get("vehicle_number", "")
+                
+                msg = f"RikSahyak: {driver_name} ({veh_num}) is on the way! Your pickup OTP is {otp}."
+                # We await it. It runs in an executor thread so it won't block the event loop.
+                import asyncio
+                asyncio.create_task(send_sms_async(passenger_phone, msg))
         
         return {
             "ride_id": acceptance.ride_id,
@@ -554,7 +580,7 @@ async def get_admin_stats():
     Get comprehensive admin dashboard statistics.
     """
     try:
-        from app.services.ride_firestore import get_admin_stats
+        from app.services.ride_sqlite import get_admin_stats
         stats = get_admin_stats()
         return stats
     except Exception as e:
@@ -1039,7 +1065,7 @@ async def reassign_ride(ride_id: str, driver_id: str = None):
     Reassign a ride to a different driver or find a new driver.
     """
     try:
-        from app.services.ride_firestore import assign_driver, find_drivers_for_ride
+        from app.services.ride_sqlite import assign_driver, find_drivers_for_ride
         
         if driver_id:
             # Assign specific driver
@@ -1073,4 +1099,41 @@ async def get_ride_details(ride_id: str):
         
     except Exception as e:
         logger.error(f"Error fetching ride details: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@admin_router.get("/admin/flywheel-logs")
+async def fetch_failed_sms_logs(limit: int = 50):
+    """
+    Get the most recent failed SMS parsing attempts.
+    This data powers the AI Data Flywheel for offline fine-tuning.
+    """
+    try:
+        logs = get_failed_sms_logs(limit=limit)
+        return {"status": "success", "logs": logs}
+    except Exception as e:
+        logger.error(f"Error fetching flywheel logs: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@admin_router.post("/admin/drivers")
+async def register_driver(driver_data: dict):
+    """
+    Register a new driver in the database.
+    """
+    try:
+        driver_id = add_driver(driver_data)
+        return {"status": "success", "driver_id": driver_id}
+    except Exception as e:
+        logger.error(f"Error registering driver: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+@admin_router.get("/admin/drivers")
+async def get_all_drivers():
+    """
+    Get a list of all registered drivers.
+    """
+    try:
+        drivers = list_drivers_ordered()
+        return {"status": "success", "drivers": drivers}
+    except Exception as e:
+        logger.error(f"Error fetching drivers: {e}")
         raise HTTPException(status_code=500, detail=str(e))

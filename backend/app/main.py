@@ -19,11 +19,16 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+from app.api.v1.sms_webhook import router as sms_webhook_router
+from app.api.v1.system import router as system_router
+
 # Include API routers
 app.include_router(endpoints.router, prefix=API_PREFIX)
 app.include_router(endpoints.admin_router, prefix=API_PREFIX)
 app.include_router(endpoints.operator_router, prefix=API_PREFIX)
 app.include_router(websocket.router, prefix=API_PREFIX)
+app.include_router(sms_webhook_router, prefix=f"{API_PREFIX}/sms")
+app.include_router(system_router, prefix=f"{API_PREFIX}/admin")
 
 
 @app.get("/")

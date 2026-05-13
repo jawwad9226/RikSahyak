@@ -69,11 +69,11 @@ Frontend (React Native)  →  Backend (FastAPI)  →  Database (Firebase)
 
 ## 📖 For Different Needs
 
-- **Just want to run it?** → [QUICKREF.md](QUICKREF.md)
-- **Need to setup?** → [SETUP.md](SETUP.md)
-- **Want full details?** → [PROJECT_GUIDE.md](PROJECT_GUIDE.md)
-- **Understanding system?** → [ARCHITECTURE.md](ARCHITECTURE.md)
-- **Checking what's done?** → [CHECKLIST.md](CHECKLIST.md)
+- **Just want to run it?** → [QUICKREF.md](Documentation/QUICKREF.md)
+- **Need to setup?** → [SETUP.md](Documentation/SETUP.md)
+- **Want full details?** → [PROJECT_GUIDE.md](Documentation/PROJECT_GUIDE.md)
+- **Understanding system?** → [ARCHITECTURE.md](Documentation/ARCHITECTURE.md)
+- **Checking what's done?** → [CHECKLIST.md](Documentation/CHECKLIST.md)
 
 ## 💡 Key Endpoints
 
@@ -108,4 +108,4 @@ This project teaches:
 
 ---
 
-**👉 Start here:** [QUICKREF.md](QUICKREF.md) - Everything in 2 minutes!
+**👉 Start here:** [QUICKREF.md](Documentation/QUICKREF.md) - Everything in 2 minutes!

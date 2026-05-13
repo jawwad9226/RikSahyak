@@ -39,9 +39,8 @@ from app.services.ride_sqlite import (
     RideConflictError,
     RideStateError,
     _now_iso,
+    _update_ride_data,
 )
-from app.services.firebase_init import get_db
-from app.core.firestore_models import COLLECTION_RIDES
 
 from app.api.deps import verify_admin_token
 
@@ -684,8 +683,7 @@ async def submit_ride_feedback(feedback: RideFeedbackRequest):
             }
         }
         
-        db = get_db()
-        db.collection(COLLECTION_RIDES).document(feedback.ride_id).update(feedback_data)
+        _update_ride_data(feedback.ride_id, feedback_data)
         
         # TODO: Update driver aggregate rating (could be done in a separate service)
         # For now, just store the feedback

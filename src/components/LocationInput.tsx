@@ -1,4 +1,5 @@
 import React, { useEffect, useState } from 'react';
+import { API_CONFIG } from '../config/env';
 import {
     ActivityIndicator,
     Pressable,
@@ -51,8 +52,8 @@ export default function LocationInput({
 
     setLoading(true);
     try {
-      // Use localhost for development
-      const API_URL = 'http://localhost:8000';
+      // Use dynamic API URL from config
+      const API_URL = API_CONFIG.BASE_URL;
       
       const response = await fetch(`${API_URL}/api/v1/rides/search-location`, {
         method: 'POST',
